@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useFlow, FLOW_STATES } from '../context/FlowContext';
 
 // Map flow states to user-friendly labels
@@ -26,58 +25,7 @@ const flowStateProgress = {
 };
 
 const Header = () => {
-  const { flowState, resetState, getHoldTimeRemaining, booking, error } = useFlow();
-  const [timeRemaining, setTimeRemaining] = useState(null);
-  
-  // Format time remaining as MM:SS
-  const formatTimeRemaining = (ms) => {
-    if (!ms) return '00:00';
-    
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-  
-  // Get CSS class for countdown timer based on time remaining
-  const getTimerClass = (ms) => {
-    if (!ms) return 'countdown-timer';
-    
-    if (ms < 30000) { // Less than 30 seconds
-      return 'countdown-timer danger';
-    } else if (ms < 60000) { // Less than 1 minute
-      return 'countdown-timer warning';
-    } else {
-      return 'countdown-timer';
-    }
-  };
-  
-  // Update countdown timer every second
-  useEffect(() => {
-    if (flowState === FLOW_STATES.IDLE || flowState === FLOW_STATES.COMPLETED || flowState === FLOW_STATES.ERROR) {
-      setTimeRemaining(null);
-      return;
-    }
-    
-    // Initial update
-    setTimeRemaining(getHoldTimeRemaining());
-    
-    // Set interval to update every second
-    const interval = setInterval(() => {
-      const remaining = getHoldTimeRemaining();
-      setTimeRemaining(remaining);
-      
-      // If hold has expired and we're not in an error state, reset to idle
-      if (remaining <= 0 && flowState !== FLOW_STATES.ERROR) {
-        resetState();
-        clearInterval(interval);
-      }
-    }, 1000);
-    
-    // Clean up interval on unmount or state change
-    return () => clearInterval(interval);
-  }, [flowState, getHoldTimeRemaining, resetState]);
+  const { flowState, resetState, booking, error } = useFlow();
   
   return (
     <header className="bg-white shadow-md">
@@ -109,13 +57,7 @@ const Header = () => {
               )}
             </div>
             
-            {/* Countdown Timer (only show during active booking) */}
-            {timeRemaining !== null && (
-              <div className={getTimerClass(timeRemaining)}>
-                Hold expires in: {formatTimeRemaining(timeRemaining)}
-              </div>
-            )}
-            
+            {/* Countdown timer removed for manual-test simplicity */}
             {/* Reset Button */}
             <button
               onClick={resetState}
