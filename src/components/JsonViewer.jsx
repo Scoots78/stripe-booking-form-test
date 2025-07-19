@@ -4,8 +4,8 @@ import { useState, useCallback } from 'react';
  * Custom JSON viewer component with syntax highlighting and collapsible sections
  */
 const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null }) => {
-  const [collapsed, setCollapsed] = useState(initialCollapsed && level > 0);
   const [copied, setCopied] = useState(false);
+  const [collapsedPaths, setCollapsedPaths] = useState({});
 
   // Format the JSON data as a string
   const jsonString = JSON.stringify(data, null, 2);
@@ -20,6 +20,22 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
       console.error('Failed to copy to clipboard:', error);
     }
   }, [jsonString]);
+
+  // Toggle collapse state for a specific path
+  const toggleCollapse = useCallback((path) => (e) => {
+    e.stopPropagation();
+    setCollapsedPaths(prev => ({
+      ...prev,
+      [path]: !prev[path]
+    }));
+  }, []);
+
+  // Check if a path is collapsed
+  const isPathCollapsed = useCallback((path) => {
+    return collapsedPaths[path] === undefined 
+      ? initialCollapsed && level > 0 
+      : collapsedPaths[path];
+  }, [collapsedPaths, initialCollapsed, level]);
 
   // Determine the type of the data
   const getType = (value) => {
@@ -43,7 +59,7 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
         return renderArray(value, currentPath, key);
       }
       case 'string': {
-        return <span className="json-string">"{value}"</span>;
+        return <span className="json-string">&quot;{value}&quot;</span>;
       }
       case 'number': {
         return <span className="json-number">{value}</span>;
@@ -62,17 +78,12 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
 
   // Render an object with collapsible functionality
   const renderObject = (obj, path, label = null) => {
-    const [isCollapsed, setIsCollapsed] = useState(initialCollapsed && level > 0);
+    const isCollapsed = isPathCollapsed(path);
     const isEmpty = Object.keys(obj).length === 0;
     
-    const toggleCollapse = (e) => {
-      e.stopPropagation();
-      setIsCollapsed(!isCollapsed);
-    };
-
     return (
       <div className="json-object">
-        <span onClick={toggleCollapse} className="cursor-pointer">
+        <span onClick={toggleCollapse(path)} className="cursor-pointer">
           {label && <span className="json-key">{label}: </span>}
           {isEmpty ? (
             <span>{'{}'}</span>
@@ -105,17 +116,12 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
 
   // Render an array with collapsible functionality
   const renderArray = (arr, path, label = null) => {
-    const [isCollapsed, setIsCollapsed] = useState(initialCollapsed && level > 0);
+    const isCollapsed = isPathCollapsed(path);
     const isEmpty = arr.length === 0;
     
-    const toggleCollapse = (e) => {
-      e.stopPropagation();
-      setIsCollapsed(!isCollapsed);
-    };
-
     return (
       <div className="json-array">
-        <span onClick={toggleCollapse} className="cursor-pointer">
+        <span onClick={toggleCollapse(path)} className="cursor-pointer">
           {label && <span className="json-key">{label}: </span>}
           {isEmpty ? (
             <span>[]</span>

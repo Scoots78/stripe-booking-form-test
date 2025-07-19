@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useFlow, FLOW_STATES } from '../context/FlowContext';
 import { CardElement, useStripe, useElements, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
@@ -31,14 +31,10 @@ const StripePaymentFormWrapper = () => {
   const [stripePromise, setStripePromise] = useState(null);
   const { logInfo, logError } = useLogger();
 
-  // Only show this component when in the entering card state
-  if (flowState !== FLOW_STATES.ENTERING_CARD) {
-    return null;
-  }
-
   // Initialize Stripe with the public key
   useEffect(() => {
-    if (stripeContext.publicKey && !stripePromise) {
+    // Only initialize when in entering card state and we have a public key
+    if (flowState === FLOW_STATES.ENTERING_CARD && stripeContext.publicKey && !stripePromise) {
       logInfo('Initializing Stripe Elements', { publicKeyPrefix: stripeContext.publicKey.substring(0, 8) + '...' });
       
       // Load Stripe.js
@@ -53,7 +49,12 @@ const StripePaymentFormWrapper = () => {
       
       loadStripeInstance();
     }
-  }, [stripeContext.publicKey, stripePromise, logInfo, logError]);
+  }, [stripeContext.publicKey, stripePromise, logInfo, logError, flowState]);
+
+  // Only show this component when in the entering card state
+  if (flowState !== FLOW_STATES.ENTERING_CARD) {
+    return null;
+  }
 
   if (!stripePromise) {
     return (
@@ -109,7 +110,7 @@ const StripePaymentForm = () => {
   }, [logApiCall]);
 
   // Determine if we're handling a deposit or no-show protection
-  const paymentType = isDepositRequired() ? 'deposit' : 'noshow';
+  const _paymentType = isDepositRequired() ? 'deposit' : 'noshow';
   const intentType = stripeApi.getIntentType(stripeContext.clientSecret);
   
   // Handle form submission

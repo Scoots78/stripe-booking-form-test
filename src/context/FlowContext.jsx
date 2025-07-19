@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useReducer } from 'react';
 
 // Flow states
@@ -44,16 +45,17 @@ const initialState = {
 // Reducer function
 function flowReducer(state, action) {
   switch (action.type) {
-    case ActionTypes.SET_BOOKING:
+    case ActionTypes.SET_BOOKING: {
       // When setting booking, also calculate the hold expiry (3 minutes from now)
       const holdExpiry = new Date();
       holdExpiry.setMinutes(holdExpiry.getMinutes() + 3);
-      
+
       return {
         ...state,
         booking: action.payload,
         holdExpiry: holdExpiry.getTime(),
       };
+    }
       
     case ActionTypes.SET_STRIPE_KEYS:
       return {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useFlow, FLOW_STATES } from '../context/FlowContext';
 import * as eveveApi from '../api/eveve';
 import useLogger from '../hooks/useLogger';
