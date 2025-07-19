@@ -1,13 +1,14 @@
 
 # 🧪 Stripe + Eveve Test App
 
-## 🚀 Proposed Tech Stack (Flexable to needs)
+## 🚀 Tech Stack (Implemented)
 
 - **React** – Component-based UI rendering
 - **Tailwind CSS** – Utility-first styling
 - **Vite** – Fast development server and build tool
 
-A **temporary developer tool** to explore and debug the Stripe deposit/payment integration with the Eveve restaurant booking API.
+A **temporary developer tool** to explore and debug the Stripe deposit/payment integration with the Eveve restaurant booking API.  
+The core feature-set is now **fully implemented** (see “Feature Status” below).
 
 This app is designed to:
 - Simulate and observe the full Stripe payment or card registration flow.
@@ -37,6 +38,39 @@ The primary objective of this app is to visualise and test the flow between Evev
    - Call `deposit-get` to determine the payment type (deposit or no-show).
 4. Optionally, submit a test payment method and confirm via Stripe.
 5. All steps are **logged visibly on the frontend** for debugging.
+
+---
+
+## 🛠️ Installation
+
+```bash
+# clone or download the repo first
+cd stripe-booking-form-test
+
+# install dependencies
+npm install
+
+# start the Vite dev server
+npm run dev
+
+# build for production (optional)
+npm run build
+```
+
+The app will be available at `http://localhost:3000` (Vite opens it automatically).
+
+---
+
+## ▶️ Quick Start
+1. Launch the dev server as above.  
+2. Paste an Eveve `HOLD` URL (sample buttons included) into the **Booking URL** field.  
+3. Observe the live log panel while the app:  
+   • Reserves the booking (`hold`)  
+   • Retrieves Stripe keys (`pi-get`) **before** any customer data  
+   • Determines deposit vs no-show (`deposit-get`)  
+4. Enter card details via **Stripe Elements** and complete the charge/hold.  
+5. Fill in customer details and click **Complete Booking**.  
+6. Review/download all logged API calls in JSON or cURL format.
 
 ---
 
@@ -140,10 +174,11 @@ https://api.stripe.com/v1/setup_intents/<id>/confirm
 ## 🖥️ Front-End Interface
 
 The UI allows:
-- Input of a full Eveve `HOLD` URL.
-- On-screen JSON output of each step.
-- Triggering of individual API steps manually (for testing).
-- Future: Stripe Elements form to test real token submission.
+• Input of any Eveve `HOLD` URL.  
+• ​Stripe Elements card form (test cards only).  
+• Live JSON viewer for every request/response.  
+• Copy cURL commands or full logs to clipboard / download.  
+• Manual replay of individual steps (e.g., `pm-id`) for deeper testing.
 
 ---
 
@@ -154,20 +189,34 @@ The UI allows:
 - Fetch / Axios for API
 - Future: Stripe Elements (optional)
 
----
 
+---
+## 🧪 Feature Status
 ## 🧪 Development Goals
 
-| Feature                              | Status    |
-|--------------------------------------|-----------|
-| Input HOLD URL                       | 🔲 Pending|
-| Trigger `pi-get` + `deposit-get`     | 🔲 Pending|
-| Display all JSON responses           | 🔲 Pending|
-| Manual test of `pm-id`               | 🔲 Pending|
-| Display Stripe Elements (test card)  | 🔲 Pending|
-| Manual confirm of `setup_intent`     | 🔲 Pending|
+| Feature                              | Status |
+|--------------------------------------|--------|
+| Input HOLD URL                       | ✅ Done |
+| Trigger `pi-get` + `deposit-get`     | ✅ Done |
+| Display all JSON responses           | ✅ Done |
+| Manual test of `pm-id`               | ✅ Done |
+| Stripe Elements (test cards)         | ✅ Done |
+| Manual confirm of `setup_intent` / `payment_intent` | ✅ Done |
+| Export / copy logs                   | ✅ Done |
 
 ---
+
+## 🏗️ Architecture Overview
+
+* `src/context/FlowContext.jsx` – global state & reducer for booking flow.  
+* `src/api/` – Axios wrappers for Eveve (`eveve.js`) and helper utilities for Stripe (`stripe.js`) with centralised logging interceptors.  
+* `src/components/` – modular UI:  
+  • **BookingForm** – URL input & hold call  
+  • **StripePaymentForm** – Elements card form & intent confirmation  
+  • **UserDetailsForm** – customer data & `/update` call  
+  • **LogDisplay** – collapsible JSON console (+ cURL copy)  
+  • **Header** – flow progress bar & hold-expiry countdown  
+* `src/hooks/useLogger.js` – helper for formatted logs, copy/export functions.  
 
 ## 📡 Socket Connection (Unused but Noted)
 
