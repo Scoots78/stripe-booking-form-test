@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useReducer, useCallback } from 'react';
 
 // Flow states
 export const FLOW_STATES = {
@@ -126,44 +126,44 @@ export function FlowProvider({ children }) {
   const [state, dispatch] = useReducer(flowReducer, initialState);
   
   // Action creators
-  const setBooking = (bookingData) => {
+  const setBooking = useCallback((bookingData) => {
     dispatch({ type: ActionTypes.SET_BOOKING, payload: bookingData });
-  };
+  }, [dispatch]);
   
-  const setStripeKeys = (keys) => {
+  const setStripeKeys = useCallback((keys) => {
     dispatch({ type: ActionTypes.SET_STRIPE_KEYS, payload: keys });
-  };
+  }, [dispatch]);
   
-  const setPaymentType = (depositData) => {
+  const setPaymentType = useCallback((depositData) => {
     dispatch({ type: ActionTypes.SET_PAYMENT_TYPE, payload: depositData });
-  };
+  }, [dispatch]);
   
-  const setFlowState = (state) => {
-    dispatch({ type: ActionTypes.SET_FLOW_STATE, payload: state });
-  };
+  const setFlowState = useCallback((newState) => {
+    dispatch({ type: ActionTypes.SET_FLOW_STATE, payload: newState });
+  }, [dispatch]);
   
-  const addLog = (logData) => {
+  const addLog = useCallback((logData) => {
     dispatch({ type: ActionTypes.ADD_LOG, payload: logData });
-  };
+  }, [dispatch]);
   
-  const clearLogs = () => {
+  const clearLogs = useCallback(() => {
     dispatch({ type: ActionTypes.CLEAR_LOGS });
-  };
+  }, [dispatch]);
   
-  const setError = (error) => {
+  const setError = useCallback((error) => {
     dispatch({ type: ActionTypes.SET_ERROR, payload: error });
-  };
+  }, [dispatch]);
   
-  const setPaymentMethod = (pmId) => {
+  const setPaymentMethod = useCallback((pmId) => {
     dispatch({ type: ActionTypes.SET_PAYMENT_METHOD, payload: pmId });
-  };
+  }, [dispatch]);
   
-  const resetState = () => {
+  const resetState = useCallback(() => {
     dispatch({ type: ActionTypes.RESET_STATE });
-  };
+  }, [dispatch]);
   
   // Log API call helper
-  const logApiCall = (label, request, response, error = null) => {
+  const logApiCall = useCallback((label, request, response, error = null) => {
     addLog({
       label,
       request,
@@ -175,7 +175,7 @@ export function FlowProvider({ children }) {
     if (error) {
       setError(error);
     }
-  };
+  }, [addLog, setError]);
   
   // Check if card is required based on booking data
   const isCardRequired = () => {

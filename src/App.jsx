@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import React from 'react';
 import { useFlow, FLOW_STATES } from './context/FlowContext';
 import Header from './components/Header';
 import BookingForm from './components/BookingForm';
@@ -9,15 +9,7 @@ import useLogger from './hooks/useLogger';
 
 function App() {
   const { flowState, isCardRequired } = useFlow();
-  const { logInfo } = useLogger();
-  
-  // Log application initialization
-  useEffect(() => {
-    logInfo('Application initialized', { 
-      timestamp: new Date().toISOString(),
-      version: '0.1.0'
-    });
-  }, [logInfo]);
+  useLogger(); // ensure logger hook initialises (no side-effect needed here)
 
   return (
     <div className="min-h-screen bg-stripe-light">
