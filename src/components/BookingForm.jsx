@@ -16,6 +16,15 @@ const SAMPLE_URLS = [
   {
     label: 'TestNZA - No Card Required (card=0)',
     url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=1&date=2025-07-27&time=12&area=1000'
+  },
+  // --- Examples WITHOUT the optional `area` parameter ---
+  {
+    label: 'TestNZA - Deposit (no area param)',
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=6&date=2025-07-30&time=18'
+  },
+  {
+    label: 'TestNZA - No-Show (no area param)',
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=4&date=2025-08-01&time=20'
   }
 ];
 
@@ -54,7 +63,8 @@ const BookingForm = () => {
       const params = Object.fromEntries(urlObj.searchParams.entries());
       
       // Validate required parameters
-      const requiredParams = ['est', 'covers', 'date', 'time', 'area'];
+      // 'area' is now optional – remove it from the required list
+      const requiredParams = ['est', 'covers', 'date', 'time'];
       const missingParams = requiredParams.filter(param => !params[param]);
       
       if (missingParams.length > 0) {
@@ -74,7 +84,8 @@ const BookingForm = () => {
           covers: parseInt(params.covers, 10),
           date: params.date,
           time: parseInt(params.time, 10),
-          area: parseInt(params.area, 10)
+          // include area only if present; it's optional
+          ...(params.area ? { area: parseInt(params.area, 10) } : {})
         }
       };
     } catch (error) {
@@ -225,7 +236,8 @@ const BookingForm = () => {
         covers: holdParams.covers,
         date: holdParams.date,
         time: holdParams.time,
-        area: holdParams.area
+        // include area only when provided in the original hold parameters
+        ...(holdParams.area ? { area: holdParams.area } : {})
       };
       
       setBooking(bookingData);
