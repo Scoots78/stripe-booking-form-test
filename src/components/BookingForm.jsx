@@ -410,7 +410,7 @@ const BookingForm = () => {
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
           <h3 className="text-sm font-medium text-yellow-800 mb-2">No Card Required</h3>
           <p className="text-sm text-gray-600 mb-2">
-            This booking doesn't require a card. You can proceed directly to customer details.
+            This booking doesn&apos;t require a card. You can proceed directly to customer details.
           </p>
           <button
             onClick={proceedToUserDetails}

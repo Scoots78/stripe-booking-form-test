@@ -1,4 +1,3 @@
-import React from 'react';
 import { useFlow, FLOW_STATES } from './context/FlowContext';
 import Header from './components/Header';
 import BookingForm from './components/BookingForm';

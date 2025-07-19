@@ -118,7 +118,7 @@ const StripePaymentForm = () => {
     isDepositRequired,
     formatAmount,
     logApiCall,
-    setError
+    _setError        // intentionally unused, kept for future error handling
   } = useFlow();
   
   const { logInfo, logSuccess, logError } = useLogger();
@@ -130,7 +130,7 @@ const StripePaymentForm = () => {
   }, [logApiCall]);
 
   // Determine if we're handling a deposit or no-show protection
-  const paymentType = isDepositRequired() ? 'deposit' : 'noshow';
+  const _paymentType = isDepositRequired() ? 'deposit' : 'noshow'; // reserved for future logic
   const intentType = stripeApi.getIntentType(stripeContext.clientSecret);
   
   // Step 1: Validate booking is still valid
