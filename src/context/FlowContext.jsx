@@ -1,0 +1,235 @@
+import { createContext, useContext, useReducer } from 'react';
+
+// Flow states
+export const FLOW_STATES = {
+  IDLE: 'idle',
+  HOLDING: 'holding',
+  AWAITING_STRIPE: 'awaitingStripe',
+  ENTERING_CARD: 'enteringCard',
+  CARD_CONFIRMED: 'cardConfirmed',
+  COLLECTING_USER: 'collectingUser',
+  COMPLETED: 'completed',
+  ERROR: 'error'
+};
+
+// Action types
+const ActionTypes = {
+  SET_BOOKING: 'SET_BOOKING',
+  SET_STRIPE_KEYS: 'SET_STRIPE_KEYS',
+  SET_PAYMENT_TYPE: 'SET_PAYMENT_TYPE',
+  SET_FLOW_STATE: 'SET_FLOW_STATE',
+  ADD_LOG: 'ADD_LOG',
+  CLEAR_LOGS: 'CLEAR_LOGS',
+  RESET_STATE: 'RESET_STATE',
+  SET_ERROR: 'SET_ERROR',
+  SET_PAYMENT_METHOD: 'SET_PAYMENT_METHOD',
+};
+
+// Initial state
+const initialState = {
+  booking: null, // { uid, created, card, perHead, ... }
+  stripe: {
+    clientSecret: null,
+    publicKey: null,
+    cust: null,
+    paymentType: null, // 'deposit' or 'noshow'
+  },
+  paymentMethod: null, // Stripe payment method ID after card entry
+  flowState: FLOW_STATES.IDLE,
+  logs: [], // [{ timestamp, label, request, response, error? }]
+  error: null,
+  holdExpiry: null, // Timestamp when the 3-minute hold expires
+};
+
+// Reducer function
+function flowReducer(state, action) {
+  switch (action.type) {
+    case ActionTypes.SET_BOOKING:
+      // When setting booking, also calculate the hold expiry (3 minutes from now)
+      const holdExpiry = new Date();
+      holdExpiry.setMinutes(holdExpiry.getMinutes() + 3);
+      
+      return {
+        ...state,
+        booking: action.payload,
+        holdExpiry: holdExpiry.getTime(),
+      };
+      
+    case ActionTypes.SET_STRIPE_KEYS:
+      return {
+        ...state,
+        stripe: {
+          ...state.stripe,
+          clientSecret: action.payload.clientSecret,
+          publicKey: action.payload.publicKey,
+          cust: action.payload.cust,
+        },
+      };
+      
+    case ActionTypes.SET_PAYMENT_TYPE:
+      return {
+        ...state,
+        stripe: {
+          ...state.stripe,
+          paymentType: action.payload.code === 1 ? 'noshow' : 'deposit',
+          amount: action.payload.total,
+          currency: action.payload.currency,
+        },
+      };
+      
+    case ActionTypes.SET_FLOW_STATE:
+      return {
+        ...state,
+        flowState: action.payload,
+      };
+      
+    case ActionTypes.ADD_LOG:
+      return {
+        ...state,
+        logs: [...state.logs, { timestamp: new Date().toISOString(), ...action.payload }],
+      };
+      
+    case ActionTypes.CLEAR_LOGS:
+      return {
+        ...state,
+        logs: [],
+      };
+      
+    case ActionTypes.SET_ERROR:
+      return {
+        ...state,
+        error: action.payload,
+        flowState: FLOW_STATES.ERROR,
+      };
+      
+    case ActionTypes.SET_PAYMENT_METHOD:
+      return {
+        ...state,
+        paymentMethod: action.payload,
+      };
+      
+    case ActionTypes.RESET_STATE:
+      return initialState;
+      
+    default:
+      return state;
+  }
+}
+
+// Create context
+export const FlowContext = createContext();
+
+// Context provider component
+export function FlowProvider({ children }) {
+  const [state, dispatch] = useReducer(flowReducer, initialState);
+  
+  // Action creators
+  const setBooking = (bookingData) => {
+    dispatch({ type: ActionTypes.SET_BOOKING, payload: bookingData });
+  };
+  
+  const setStripeKeys = (keys) => {
+    dispatch({ type: ActionTypes.SET_STRIPE_KEYS, payload: keys });
+  };
+  
+  const setPaymentType = (depositData) => {
+    dispatch({ type: ActionTypes.SET_PAYMENT_TYPE, payload: depositData });
+  };
+  
+  const setFlowState = (state) => {
+    dispatch({ type: ActionTypes.SET_FLOW_STATE, payload: state });
+  };
+  
+  const addLog = (logData) => {
+    dispatch({ type: ActionTypes.ADD_LOG, payload: logData });
+  };
+  
+  const clearLogs = () => {
+    dispatch({ type: ActionTypes.CLEAR_LOGS });
+  };
+  
+  const setError = (error) => {
+    dispatch({ type: ActionTypes.SET_ERROR, payload: error });
+  };
+  
+  const setPaymentMethod = (pmId) => {
+    dispatch({ type: ActionTypes.SET_PAYMENT_METHOD, payload: pmId });
+  };
+  
+  const resetState = () => {
+    dispatch({ type: ActionTypes.RESET_STATE });
+  };
+  
+  // Log API call helper
+  const logApiCall = (label, request, response, error = null) => {
+    addLog({
+      label,
+      request,
+      response,
+      error,
+      status: error ? 'error' : 'success',
+    });
+    
+    if (error) {
+      setError(error);
+    }
+  };
+  
+  // Check if card is required based on booking data
+  const isCardRequired = () => {
+    return state.booking && state.booking.card > 0;
+  };
+  
+  // Check if deposit is required (vs. just no-show protection)
+  const isDepositRequired = () => {
+    return state.stripe.paymentType === 'deposit';
+  };
+  
+  // Calculate time remaining for hold expiry
+  const getHoldTimeRemaining = () => {
+    if (!state.holdExpiry) return null;
+    
+    const now = new Date().getTime();
+    const timeLeft = state.holdExpiry - now;
+    
+    return timeLeft > 0 ? timeLeft : 0;
+  };
+  
+  // Format currency amount (cents to dollars)
+  const formatAmount = (cents) => {
+    if (!cents) return '$0.00';
+    return `$${(cents / 100).toFixed(2)}`;
+  };
+  
+  // Value object to be provided by context
+  const value = {
+    ...state,
+    setBooking,
+    setStripeKeys,
+    setPaymentType,
+    setFlowState,
+    addLog,
+    clearLogs,
+    logApiCall,
+    setError,
+    setPaymentMethod,
+    resetState,
+    isCardRequired,
+    isDepositRequired,
+    getHoldTimeRemaining,
+    formatAmount,
+  };
+  
+  return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
+}
+
+// Custom hook to use the flow context
+export function useFlow() {
+  const context = useContext(FlowContext);
+  
+  if (!context) {
+    throw new Error('useFlow must be used within a FlowProvider');
+  }
+  
+  return context;
+}
