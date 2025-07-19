@@ -30,30 +30,46 @@ const StripePaymentFormWrapper = () => {
   const { stripe: stripeContext, flowState } = useFlow();
   const [stripePromise, setStripePromise] = useState(null);
   const { logInfo, logError } = useLogger();
-
-  // Initialize Stripe with the public key
-  useEffect(() => {
-    // Only initialize when in entering card state and we have a public key
-    if (flowState === FLOW_STATES.ENTERING_CARD && stripeContext.publicKey && !stripePromise) {
-      logInfo('Initializing Stripe Elements', { publicKeyPrefix: stripeContext.publicKey.substring(0, 8) + '...' });
-      
-      // Load Stripe.js
-      const loadStripeInstance = async () => {
-        try {
-          const stripe = await loadStripe(stripeContext.publicKey);
-          setStripePromise(stripe);
-        } catch (error) {
-          logError('Failed to load Stripe.js', error);
-        }
-      };
-      
-      loadStripeInstance();
-    }
-  }, [stripeContext.publicKey, stripePromise, logInfo, logError, flowState]);
+  const [manuallyInitialized, setManuallyInitialized] = useState(false);
 
   // Only show this component when in the entering card state
   if (flowState !== FLOW_STATES.ENTERING_CARD) {
     return null;
+  }
+
+  // Manual initialization of Stripe
+  const initializeStripe = async () => {
+    if (stripePromise || !stripeContext.publicKey) return;
+    
+    try {
+      logInfo('Manually initializing Stripe Elements', { 
+        publicKeyPrefix: stripeContext.publicKey.substring(0, 8) + '...' 
+      });
+      
+      const stripe = await loadStripe(stripeContext.publicKey);
+      setStripePromise(stripe);
+      setManuallyInitialized(true);
+    } catch (error) {
+      logError('Failed to load Stripe.js', error);
+    }
+  };
+
+  if (!manuallyInitialized) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6 mb-4">
+        <h2 className="text-xl font-semibold text-stripe-dark mb-4">Stripe Payment Form</h2>
+        <p className="mb-4 text-gray-600">
+          Stripe Elements needs to be initialized before you can enter card details.
+        </p>
+        <button 
+          onClick={initializeStripe}
+          className="form-button"
+          disabled={!stripeContext.publicKey}
+        >
+          Initialize Stripe Elements
+        </button>
+      </div>
+    );
   }
 
   if (!stripePromise) {
@@ -89,6 +105,10 @@ const StripePaymentForm = () => {
     name: '',
     email: '',
   });
+  const [currentStep, setCurrentStep] = useState('enterDetails');
+  const [validatedBooking, setValidatedBooking] = useState(false);
+  const [paymentResult, setPaymentResult] = useState(null);
+  const [pmIdAttached, setPmIdAttached] = useState(false);
 
   const { 
     stripe: stripeContext, 
@@ -110,35 +130,16 @@ const StripePaymentForm = () => {
   }, [logApiCall]);
 
   // Determine if we're handling a deposit or no-show protection
-  const _paymentType = isDepositRequired() ? 'deposit' : 'noshow';
+  const paymentType = isDepositRequired() ? 'deposit' : 'noshow';
   const intentType = stripeApi.getIntentType(stripeContext.clientSecret);
   
-  // Handle form submission
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
-    if (!stripe || !elements) {
-      // Stripe.js has not loaded yet
-      return;
-    }
-
-    if (!cardComplete) {
-      setCardError('Please complete your card details');
-      return;
-    }
-
-    if (!billingDetails.name.trim()) {
-      setCardError('Please provide the cardholder name');
-      return;
-    }
-
+  // Step 1: Validate booking is still valid
+  const validateBooking = async () => {
     setIsProcessing(true);
     setCardError('');
-
+    setCurrentStep('validatingBooking');
+    
     try {
-      // Get the CardElement
-      const cardElement = elements.getElement(CardElement);
-
       // Verify booking is still valid by calling restore
       const restoreParams = {
         est: booking.est,
@@ -153,6 +154,48 @@ const StripePaymentForm = () => {
       }
 
       logInfo('Booking verified as valid', { uid: booking.uid });
+      setValidatedBooking(true);
+      setCurrentStep('readyForPayment');
+      return true;
+    } catch (error) {
+      logError('Booking validation failed', error);
+      setCardError('Booking validation failed: ' + error.message);
+      setCurrentStep('error');
+      return false;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  // Step 2: Process payment with Stripe
+  const processPayment = async () => {
+    if (!stripe || !elements) {
+      setCardError('Stripe.js has not loaded yet');
+      return;
+    }
+
+    if (!cardComplete) {
+      setCardError('Please complete your card details');
+      return;
+    }
+
+    if (!billingDetails.name.trim()) {
+      setCardError('Please provide the cardholder name');
+      return;
+    }
+    
+    if (!validatedBooking) {
+      setCardError('Please validate the booking first');
+      return;
+    }
+
+    setIsProcessing(true);
+    setCardError('');
+    setCurrentStep('processingPayment');
+
+    try {
+      // Get the CardElement
+      const cardElement = elements.getElement(CardElement);
 
       // Process payment based on intent type
       let result;
@@ -184,46 +227,28 @@ const StripePaymentForm = () => {
       if (result.error) {
         // Show error to your customer
         throw result.error;
-      } else {
-        // Payment or setup successful
-        const paymentMethodId = intentType === 'setup_intent' 
-          ? result.setupIntent.payment_method
-          : result.paymentIntent.payment_method;
-        
-        // Store the payment method ID
-        setPaymentMethod(paymentMethodId);
-        
-        // Call pm-id to attach the payment method to the booking
-        const pmIdParams = {
-          est: booking.est,
-          uid: booking.uid,
-          created: booking.created,
-          pm: paymentMethodId,
-          total: stripeContext.amount,
-          totalFloat: stripeContext.amount / 100,
-          type: 0
-        };
-        
-        const pmIdResponse = await eveveApi.pmId(pmIdParams);
-        
-        if (!pmIdResponse.data.ok) {
-          throw new Error('Failed to attach payment method to booking');
-        }
-
-        // Log success
-        const successMessage = isDepositRequired()
-          ? `Deposit of ${formatAmount(stripeContext.amount)} successfully charged`
-          : 'Card successfully stored for no-show protection';
-          
-        logSuccess(successMessage, {
-          paymentMethodId: paymentMethodId.substring(0, 5) + '...',
-          cardBrand: result.paymentMethod?.card?.brand,
-          last4: result.paymentMethod?.card?.last4
-        });
-        
-        // Update flow state to move to customer details
-        setFlowState(FLOW_STATES.CARD_CONFIRMED);
       }
+      
+      // Payment or setup successful
+      const paymentMethodId = intentType === 'setup_intent' 
+        ? result.setupIntent.payment_method
+        : result.paymentIntent.payment_method;
+      
+      // Store the payment method ID
+      setPaymentMethod(paymentMethodId);
+      setPaymentResult({
+        paymentMethodId,
+        status: intentType === 'setup_intent' ? result.setupIntent.status : result.paymentIntent.status,
+        type: intentType
+      });
+      
+      logSuccess('Payment processed successfully', {
+        paymentMethodId: paymentMethodId.substring(0, 5) + '...',
+        status: intentType === 'setup_intent' ? result.setupIntent.status : result.paymentIntent.status
+      });
+      
+      setCurrentStep('paymentComplete');
+      return true;
     } catch (error) {
       // Log the error
       logError('Payment processing failed', {
@@ -239,13 +264,81 @@ const StripePaymentForm = () => {
         'An error occurred while processing your payment. Please try again.'
       );
       
-      // Set global error state
-      setError({
-        message: 'Payment processing failed: ' + error.message
-      });
+      setCurrentStep('error');
+      return false;
     } finally {
       setIsProcessing(false);
     }
+  };
+  
+  // Step 3: Attach payment method to booking
+  const attachPaymentMethod = async () => {
+    if (!paymentResult || !paymentResult.paymentMethodId) {
+      setCardError('No payment method available to attach');
+      return;
+    }
+    
+    setIsProcessing(true);
+    setCardError('');
+    setCurrentStep('attachingPaymentMethod');
+    
+    try {
+      // Call pm-id to attach the payment method to the booking
+      const pmIdParams = {
+        est: booking.est,
+        uid: booking.uid,
+        created: booking.created,
+        pm: paymentResult.paymentMethodId,
+        total: stripeContext.amount,
+        totalFloat: stripeContext.amount / 100,
+        type: 0
+      };
+      
+      const pmIdResponse = await eveveApi.pmId(pmIdParams);
+      
+      if (!pmIdResponse.data.ok) {
+        throw new Error('Failed to attach payment method to booking');
+      }
+
+      // Log success
+      const successMessage = isDepositRequired()
+        ? `Deposit of ${formatAmount(stripeContext.amount)} successfully charged`
+        : 'Card successfully stored for no-show protection';
+        
+      logSuccess(successMessage, {
+        paymentMethodId: paymentResult.paymentMethodId.substring(0, 5) + '...'
+      });
+      
+      setPmIdAttached(true);
+      setCurrentStep('complete');
+      return true;
+    } catch (error) {
+      // Log the error
+      logError('Failed to attach payment method', error);
+      
+      // Set the error message
+      setCardError(
+        error.message ||
+        'An error occurred while attaching the payment method to your booking.'
+      );
+      
+      setCurrentStep('error');
+      return false;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  // Step 4: Proceed to customer details
+  const proceedToCustomerDetails = () => {
+    if (!pmIdAttached) {
+      setCardError('Please attach the payment method first');
+      return;
+    }
+    
+    // Update flow state to move to customer details
+    setFlowState(FLOW_STATES.CARD_CONFIRMED);
+    logInfo('Proceeding to customer details form');
   };
 
   return (
@@ -269,7 +362,82 @@ const StripePaymentForm = () => {
         </p>
       </div>
       
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Manual Step Controls */}
+      <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+        <h3 className="text-sm font-medium text-yellow-800 mb-2">Manual Payment Steps</h3>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={validateBooking}
+            disabled={isProcessing || validatedBooking}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              validatedBooking 
+                ? 'bg-green-100 text-green-800 cursor-not-allowed' 
+                : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            }`}
+          >
+            {isProcessing && currentStep === 'validatingBooking'
+              ? 'Validating...' 
+              : validatedBooking 
+                ? '✓ Booking Validated' 
+                : '1. Validate Booking'}
+          </button>
+          
+          <button
+            onClick={processPayment}
+            disabled={isProcessing || !validatedBooking || paymentResult}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              !validatedBooking 
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                : paymentResult
+                  ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            }`}
+          >
+            {isProcessing && currentStep === 'processingPayment'
+              ? 'Processing...' 
+              : paymentResult 
+                ? '✓ Payment Processed' 
+                : '2. Process Payment'}
+          </button>
+          
+          <button
+            onClick={attachPaymentMethod}
+            disabled={isProcessing || !paymentResult || pmIdAttached}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              !paymentResult
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                : pmIdAttached
+                  ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            }`}
+          >
+            {isProcessing && currentStep === 'attachingPaymentMethod'
+              ? 'Attaching...' 
+              : pmIdAttached 
+                ? '✓ Payment Method Attached' 
+                : '3. Attach Payment Method'}
+          </button>
+          
+          <button
+            onClick={proceedToCustomerDetails}
+            disabled={isProcessing || !pmIdAttached}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              !pmIdAttached
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+            }`}
+          >
+            {isProcessing 
+              ? 'Processing...' 
+              : '4. Proceed to Customer Details'}
+          </button>
+        </div>
+        <p className="text-xs text-gray-600 mt-2">
+          Complete each step manually to avoid API call loops
+        </p>
+      </div>
+      
+      <form className="space-y-4">
         {/* Cardholder Name */}
         <div>
           <label htmlFor="name" className="form-label">
@@ -285,6 +453,7 @@ const StripePaymentForm = () => {
               setBillingDetails({ ...billingDetails, name: e.target.value });
             }}
             className="form-input"
+            disabled={currentStep !== 'enterDetails' && currentStep !== 'readyForPayment'}
           />
         </div>
         
@@ -302,6 +471,7 @@ const StripePaymentForm = () => {
               setBillingDetails({ ...billingDetails, email: e.target.value });
             }}
             className="form-input"
+            disabled={currentStep !== 'enterDetails' && currentStep !== 'readyForPayment'}
           />
         </div>
         
@@ -310,7 +480,7 @@ const StripePaymentForm = () => {
           <label htmlFor="card" className="form-label">
             Card Details
           </label>
-          <div className="StripeElement">
+          <div className={`StripeElement ${currentStep !== 'enterDetails' && currentStep !== 'readyForPayment' ? 'opacity-50' : ''}`}>
             <CardElement
               id="card"
               options={cardElementOptions}
@@ -322,6 +492,7 @@ const StripePaymentForm = () => {
                   setCardError('');
                 }
               }}
+              disabled={currentStep !== 'enterDetails' && currentStep !== 'readyForPayment'}
             />
           </div>
           {cardError && (
@@ -337,28 +508,20 @@ const StripePaymentForm = () => {
           <p>Use any future date, any 3 digits for CVC, and any postal code.</p>
         </div>
         
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={isProcessing || !stripe || !cardComplete}
-          className="form-button w-full"
-        >
-          {isProcessing ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        {/* Status Message */}
+        {currentStep === 'complete' && (
+          <div className="p-3 bg-green-50 text-green-800 rounded-md">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              Processing...
-            </span>
-          ) : (
-            <span>
-              {isDepositRequired() 
-                ? `Pay Deposit (${formatAmount(stripeContext.amount)})` 
-                : 'Secure Booking with Card'}
-            </span>
-          )}
-        </button>
+              <span className="font-medium">Payment successfully processed!</span>
+            </div>
+            <p className="mt-1 text-sm">
+              You can now proceed to enter customer details.
+            </p>
+          </div>
+        )}
         
         {/* Secure Badge */}
         <div className="flex items-center justify-center text-xs text-gray-500 mt-4">

@@ -23,8 +23,12 @@ const BookingForm = () => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [urlError, setUrlError] = useState('');
+  const [keysLoaded, setKeysLoaded] = useState(false);
+  const [depositInfoLoaded, setDepositInfoLoaded] = useState(false);
+  const [currentStep, setCurrentStep] = useState('idle');
   
   const { 
+    booking,
     setBooking, 
     setStripeKeys, 
     setPaymentType,
@@ -83,16 +87,20 @@ const BookingForm = () => {
   }, []);
   
   // Fetch Stripe keys using pi-get
-  const fetchStripeKeys = useCallback(async (bookingData) => {
+  const fetchStripeKeys = useCallback(async () => {
+    if (!booking) return;
+    
     try {
+      setIsLoading(true);
+      setCurrentStep('fetchingKeys');
       setFlowState(FLOW_STATES.AWAITING_STRIPE);
       
       const piGetParams = {
-        est: bookingData.est || 'TestNZA',
-        uid: bookingData.uid,
+        est: booking.est || 'TestNZA',
+        uid: booking.uid,
         type: 0,
         desc: 0,
-        created: bookingData.created
+        created: booking.created
       };
       
       const response = await eveveApi.piGet(piGetParams);
@@ -108,6 +116,8 @@ const BookingForm = () => {
       });
       
       logInfo('Stripe keys retrieved successfully');
+      setKeysLoaded(true);
+      setCurrentStep('keysLoaded');
       
       return true;
     } catch (error) {
@@ -115,17 +125,25 @@ const BookingForm = () => {
       setError({
         message: 'Failed to retrieve Stripe keys: ' + error.message
       });
+      setCurrentStep('error');
       return false;
+    } finally {
+      setIsLoading(false);
     }
-  }, [setFlowState, setStripeKeys, logInfo, logError, setError]);
+  }, [booking, setFlowState, setStripeKeys, logInfo, logError, setError]);
   
   // Fetch deposit information
-  const fetchDepositInfo = useCallback(async (bookingData) => {
+  const fetchDepositInfo = useCallback(async () => {
+    if (!booking) return;
+    
     try {
+      setIsLoading(true);
+      setCurrentStep('fetchingDeposit');
+      
       const depositParams = {
-        est: bookingData.est || 'TestNZA',
-        UID: bookingData.uid,
-        created: bookingData.created,
+        est: booking.est || 'TestNZA',
+        UID: booking.uid,
+        created: booking.created,
         lang: 'english',
         type: 0
       };
@@ -146,20 +164,49 @@ const BookingForm = () => {
         message: response.data.message
       });
       
+      setDepositInfoLoaded(true);
+      setCurrentStep('depositLoaded');
+      
       return true;
     } catch (error) {
       logError('Failed to retrieve deposit information', error);
       setError({
         message: 'Failed to retrieve deposit information: ' + error.message
       });
+      setCurrentStep('error');
       return false;
+    } finally {
+      setIsLoading(false);
     }
-  }, [setPaymentType, logInfo, logError, setError]);
+  }, [booking, setPaymentType, logInfo, logError, setError]);
+  
+  // Proceed to card entry
+  const proceedToCardEntry = useCallback(() => {
+    if (!keysLoaded || !depositInfoLoaded) {
+      logError('Cannot proceed to card entry', { 
+        keysLoaded, 
+        depositInfoLoaded 
+      });
+      return;
+    }
+    
+    setFlowState(FLOW_STATES.ENTERING_CARD);
+    setCurrentStep('enteringCard');
+    logInfo('Proceeding to card entry');
+  }, [keysLoaded, depositInfoLoaded, setFlowState, logInfo, logError]);
+  
+  // Proceed to user details (when no card required)
+  const proceedToUserDetails = useCallback(() => {
+    setFlowState(FLOW_STATES.COLLECTING_USER);
+    setCurrentStep('collectingUser');
+    logInfo('Proceeding to customer details');
+  }, [setFlowState, logInfo]);
   
   // Process the booking hold
   const processHold = useCallback(async (holdParams) => {
     setIsLoading(true);
     setFlowState(FLOW_STATES.HOLDING);
+    setCurrentStep('holding');
     
     try {
       const response = await eveveApi.hold(holdParams);
@@ -182,6 +229,7 @@ const BookingForm = () => {
       };
       
       setBooking(bookingData);
+      setCurrentStep('holdComplete');
       
       // Log the booking status
       logInfo(`Booking hold successful (UID: ${bookingData.uid})`, {
@@ -191,40 +239,20 @@ const BookingForm = () => {
         amount: bookingData.perHead ? `$${(bookingData.perHead / 100).toFixed(2)} per person` : '$0.00'
       });
       
-      // If card is required, fetch Stripe keys and deposit info
-      if (bookingData.card > 0) {
-        const keysSuccess = await fetchStripeKeys(bookingData);
-        
-        if (!keysSuccess) {
-          return;
-        }
-        
-        const depositSuccess = await fetchDepositInfo(bookingData);
-        
-        if (!depositSuccess) {
-          return;
-        }
-        
-        // Transition to card entry state
-        setFlowState(FLOW_STATES.ENTERING_CARD);
-      } else {
-        // No card required, transition to user details
-        setFlowState(FLOW_STATES.COLLECTING_USER);
-        logInfo('No card required for this booking');
-      }
+      // No automatic progression to next steps - wait for manual action
+      
     } catch (error) {
       logError('Booking hold failed', error);
       setError({
         message: 'Booking hold failed: ' + error.message
       });
+      setCurrentStep('error');
     } finally {
       setIsLoading(false);
     }
   }, [
     setFlowState, 
     setBooking, 
-    fetchStripeKeys, 
-    fetchDepositInfo, 
     logInfo, 
     logError, 
     setError
@@ -247,6 +275,9 @@ const BookingForm = () => {
     
     // Reset application state before starting new flow
     resetState();
+    setKeysLoaded(false);
+    setDepositInfoLoaded(false);
+    setCurrentStep('idle');
     
     // Process the hold request
     await processHold(params);
@@ -257,6 +288,15 @@ const BookingForm = () => {
     setUrl(sampleUrl);
     setUrlError('');
   }, []);
+  
+  // Reset all state when main reset is called
+  useEffect(() => {
+    if (flowState === FLOW_STATES.IDLE) {
+      setKeysLoaded(false);
+      setDepositInfoLoaded(false);
+      setCurrentStep('idle');
+    }
+  }, [flowState]);
   
   // Disable form when not in IDLE state
   const isFormDisabled = flowState !== FLOW_STATES.IDLE && 
@@ -292,7 +332,7 @@ const BookingForm = () => {
             className="form-button"
             disabled={isFormDisabled || isLoading || !url.trim()}
           >
-            {isLoading ? 'Processing...' : 'Start Test'}
+            {isLoading && currentStep === 'holding' ? 'Processing...' : 'Start Test'}
           </button>
           
           <button
@@ -305,6 +345,82 @@ const BookingForm = () => {
           </button>
         </div>
       </form>
+      
+      {/* Manual Step Controls */}
+      {currentStep === 'holdComplete' && booking && booking.card > 0 && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">Manual Step Controls</h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={fetchStripeKeys}
+              disabled={isLoading || keysLoaded}
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                keysLoaded 
+                  ? 'bg-green-100 text-green-800 cursor-not-allowed' 
+                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+              }`}
+            >
+              {isLoading && currentStep === 'fetchingKeys' 
+                ? 'Loading...' 
+                : keysLoaded 
+                  ? '✓ Stripe Keys Loaded' 
+                  : '1. Fetch Stripe Keys'}
+            </button>
+            
+            <button
+              onClick={fetchDepositInfo}
+              disabled={isLoading || !keysLoaded || depositInfoLoaded}
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                !keysLoaded 
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                  : depositInfoLoaded
+                    ? 'bg-green-100 text-green-800 cursor-not-allowed'
+                    : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+              }`}
+            >
+              {isLoading && currentStep === 'fetchingDeposit' 
+                ? 'Loading...' 
+                : depositInfoLoaded 
+                  ? '✓ Deposit Info Loaded' 
+                  : '2. Fetch Deposit Info'}
+            </button>
+            
+            <button
+              onClick={proceedToCardEntry}
+              disabled={isLoading || !keysLoaded || !depositInfoLoaded}
+              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                !keysLoaded || !depositInfoLoaded
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+              }`}
+            >
+              {isLoading 
+                ? 'Loading...' 
+                : '3. Proceed to Card Entry'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-600 mt-2">
+            Complete each step manually to avoid API call loops
+          </p>
+        </div>
+      )}
+      
+      {/* No Card Required - Manual Proceed */}
+      {currentStep === 'holdComplete' && booking && booking.card === 0 && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">No Card Required</h3>
+          <p className="text-sm text-gray-600 mb-2">
+            This booking doesn't require a card. You can proceed directly to customer details.
+          </p>
+          <button
+            onClick={proceedToUserDetails}
+            disabled={isLoading}
+            className="px-3 py-1 text-sm bg-blue-100 text-blue-800 hover:bg-blue-200 rounded-md transition-colors"
+          >
+            Proceed to Customer Details
+          </button>
+        </div>
+      )}
       
       {/* Sample URLs */}
       <div className="mt-6">
@@ -341,8 +457,8 @@ const BookingForm = () => {
             {isCardRequired() && (
               <>
                 <li className="flex items-center mt-1">
-                  <svg className={`w-4 h-4 mr-1.5 ${flowState === FLOW_STATES.HOLDING ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
-                    {flowState === FLOW_STATES.HOLDING ? (
+                  <svg className={`w-4 h-4 mr-1.5 ${!keysLoaded ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
+                    {!keysLoaded ? (
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                     ) : (
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -352,8 +468,8 @@ const BookingForm = () => {
                 </li>
                 
                 <li className="flex items-center mt-1">
-                  <svg className={`w-4 h-4 mr-1.5 ${flowState === FLOW_STATES.HOLDING || flowState === FLOW_STATES.AWAITING_STRIPE ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
-                    {flowState === FLOW_STATES.HOLDING || flowState === FLOW_STATES.AWAITING_STRIPE ? (
+                  <svg className={`w-4 h-4 mr-1.5 ${!depositInfoLoaded ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
+                    {!depositInfoLoaded ? (
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                     ) : (
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
