@@ -359,7 +359,8 @@ const BookingForm = () => {
       </form>
       
       {/* Manual Step Controls */}
-      {currentStep === 'holdComplete' && booking && booking.card > 0 && (
+      {['holdComplete', 'keysLoaded', 'fetchingKeys', 'depositLoaded', 'fetchingDeposit']
+        .includes(currentStep) && booking && booking.card > 0 && (
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
           <h3 className="text-sm font-medium text-yellow-800 mb-2">Manual Step Controls</h3>
           <div className="flex flex-wrap gap-2">
