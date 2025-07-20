@@ -175,23 +175,38 @@ const UserDetailsForm = () => {
       // After successful update, update the Stripe payment description with customer details
       if (stripe.paymentIntentId) {
         try {
-          // Generate descriptive text
-          const bookingTime = formatBookingTime();
-          const description = `${isDepositRequired() ? 'Deposit' : 'No-Show Protection'} HOLD ${booking.covers}pax at ${bookingTime} ${booking.est} ${booking.uid} - ${formData.firstName} ${formData.lastName} (${formData.email})`;
-          
-          // Update payment description in Stripe
-          await stripeApi.updatePaymentDescription(stripe.paymentIntentId, description, {
-            customer_name: `${formData.firstName} ${formData.lastName}`,
-            customer_email: formData.email,
-            customer_phone: formData.phone
-          });
-          
-          logInfo('Updated Stripe payment description', {
-            intentId: stripe.paymentIntentId,
-            description
-          });
+          // Build friendly description
+          const bookingTime   = formatBookingTime();
+          const description   = `${isDepositRequired() ? 'Deposit' : 'No-Show Protection'} HOLD ${booking.covers}pax at ${bookingTime} ${booking.est} ${booking.uid} - ${formData.firstName} ${formData.lastName} (${formData.email})`;
+
+          // Attempt to update the PaymentIntent / SetupIntent on Stripe
+          const updRes = await stripeApi.updatePaymentDescription(
+            stripe.paymentIntentId,
+            description,
+            {
+              customer_name:  `${formData.firstName} ${formData.lastName}`,
+              customer_email: formData.email,
+              customer_phone: formData.phone,
+            },
+          );
+
+          /* 
+           * The placeholder implementation resolves with `{ placeholder: true }`
+           * until a backend endpoint is wired-up.  Treat this as INFO rather
+           * than ERROR so the UI isn’t polluted with red log entries.
+           */
+          if (updRes?.placeholder) {
+            logInfo('Skipped Stripe description update (placeholder implementation)', {
+              intentId: stripe.paymentIntentId,
+            });
+          } else {
+            logInfo('Updated Stripe payment description', {
+              intentId: stripe.paymentIntentId,
+              description,
+            });
+          }
         } catch (stripeError) {
-          // Log but don't fail the overall process
+          // Only log unexpected failures (network issues, etc.)
           logError('Failed to update Stripe payment description', stripeError);
         }
       }
