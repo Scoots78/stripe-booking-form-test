@@ -350,9 +350,6 @@ export default {
   getIntentType,
   confirmIntent,
   setApiLogger,
-
-  updatePaymentDescription,
-  refundPayment,
 };
 
 /**
