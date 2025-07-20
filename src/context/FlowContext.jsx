@@ -39,15 +39,20 @@ const initialState = {
   flowState: FLOW_STATES.IDLE,
   logs: [], // [{ timestamp, label, request, response, error? }]
   error: null,
+  // Timestamp (ms) at which the 3-minute booking hold expires.
+  holdExpiry: null,
 };
 
 // Reducer function
 function flowReducer(state, action) {
   switch (action.type) {
     case ActionTypes.SET_BOOKING: {
+      // Re-establish a 3-minute hold-expiry timer (display-only).
+      const holdExpiry = Date.now() + 3 * 60 * 1000; // 3 minutes in ms
       return {
         ...state,
         booking: action.payload,
+        holdExpiry,
       };
     }
       
@@ -181,6 +186,13 @@ export function FlowProvider({ children }) {
     return state.stripe.paymentType === 'deposit';
   };
   
+  // Time remaining (ms) before the 3-minute hold expires.
+  const getHoldTimeRemaining = () => {
+    if (!state.holdExpiry) return null;
+    const remaining = state.holdExpiry - Date.now();
+    return remaining > 0 ? remaining : 0;
+  };
+  
   // Calculate time remaining for hold expiry
   // Format currency amount (cents to dollars)
   const formatAmount = (cents) => {
@@ -203,6 +215,7 @@ export function FlowProvider({ children }) {
     resetState,
     isCardRequired,
     isDepositRequired,
+    getHoldTimeRemaining,
     formatAmount,
   };
   

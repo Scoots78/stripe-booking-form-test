@@ -20,12 +20,12 @@ const LogDisplay = () => {
   const [copiedId, setCopiedId] = useState(null);
   const logEndRef = useRef(null);
   
-  // Auto-scroll to bottom when new logs are added
-  useEffect(() => {
-    if (logs.length > 0 && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [logs.length]);
+  /*
+   * Auto-scrolling removed per requirements:
+   * The application should no longer jump down to the logs after
+   * every new entry.  We keep logEndRef for potential future manual
+   * scrolling needs, but omit the automatic behaviour.
+   */
   
   // Reset copied state after 2 seconds
   useEffect(() => {

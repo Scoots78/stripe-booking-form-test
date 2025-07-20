@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useFlow, FLOW_STATES } from '../context/FlowContext';
 
 // Map flow states to user-friendly labels
@@ -25,7 +26,42 @@ const flowStateProgress = {
 };
 
 const Header = () => {
-  const { flowState, resetState, booking, error } = useFlow();
+  const { flowState, resetState, booking, error, getHoldTimeRemaining } = useFlow();
+  const [timeRemaining, setTimeRemaining] = useState(null);
+
+  // Format time as MM:SS
+  const formatTimeRemaining = (ms) => {
+    if (ms === null) return '00:00';
+    const totalSec = Math.floor(ms / 1000);
+    const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const s = String(totalSec % 60).padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // Return css class for timer pill
+  const getTimerClass = (ms) => {
+    if (ms === null) return 'px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700';
+    if (ms < 30_000) return 'px-2 py-0.5 rounded text-xs bg-red-100 text-red-700';
+    if (ms < 60_000) return 'px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800';
+    return 'px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700';
+  };
+
+  // Update timer every second – display-only, no auto-reset
+  useEffect(() => {
+    // only run timer while a booking exists
+    if (!booking) {
+      setTimeRemaining(null);
+      return;
+    }
+    // initial value
+    setTimeRemaining(getHoldTimeRemaining());
+
+    const id = setInterval(() => {
+      setTimeRemaining(getHoldTimeRemaining());
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [booking, getHoldTimeRemaining]);
   
   return (
     <header className="bg-white shadow-md">
@@ -57,7 +93,13 @@ const Header = () => {
               )}
             </div>
             
-            {/* Countdown timer removed for manual-test simplicity */}
+            {/* Countdown Timer – warning only, no auto-reset */}
+            {timeRemaining !== null && (
+              <div className={getTimerClass(timeRemaining)}>
+                Expiry&nbsp;{formatTimeRemaining(timeRemaining)}
+              </div>
+            )}
+
             {/* Reset Button */}
             <button
               onClick={resetState}
