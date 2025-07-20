@@ -219,11 +219,9 @@ export const confirmPaymentIntent = async (clientSecret, paymentMethod, options 
   }
 };
 
-/**
- * Create a payment method directly with Stripe
- * @param {Object} paymentMethodData - Card and billing details
- * @returns {Promise<Object>} - The created payment method
- */
+// ---------------------------------------------------------------------------//
+// createPaymentMethod
+// ---------------------------------------------------------------------------//
 export const createPaymentMethod = async (paymentMethodData) => {
   const startTime = new Date();
   
@@ -350,67 +348,4 @@ export default {
   getIntentType,
   confirmIntent,
   setApiLogger,
-};
-
-/**
- * Update the description / metadata on a PaymentIntent or SetupIntent.
- * ───────────────────────────────────────────────────────────────────
- * ⚠  THIS **MUST** BE IMPLEMENTED ON A SECURE SERVER.
- *    Browser-side code cannot use your Stripe secret key.  This placeholder
- *    exists so frontend calls compile; implement server call separately.
- *
- * @param {string} intentId - PaymentIntent / SetupIntent id (e.g. pi_123…)
- * @param {string} description - New description including customer details
- * @param {Object} [metadata] - Extra metadata to attach
- */
-export const updatePaymentDescription = async (
-  intentId,
-  description,
-  metadata = {}
-) => {
-  if (logApiCallFunction) {
-    logApiCallFunction(
-      'Stripe updatePaymentDescription (placeholder)',
-      { intentId, description, metadata },
-      { status: 'NOT_IMPLEMENTED' }
-    );
-  }
-  /* 
-   * Do NOT throw an error here—this is a frontend-only placeholder. 
-   * Returning a resolved promise allows the calling code to continue
-   * without logging an error while still surfacing that the call is
-   * not yet implemented on the backend.
-   */
-  return Promise.resolve({
-    ok: true,
-    placeholder: true,
-    message: 'updatePaymentDescription skipped – requires server-side implementation',
-  });
-};
-
-/**
- * Refund a captured PaymentIntent.
- * ─────────────────────────────────
- * ⚠ Requires secret-key; placeholder for now.
- *
- * @param {string} paymentIntentId - The id of the intent to refund
- * @param {number|null} [amount=null] - Amount in cents. Null = full refund
- */
-export const refundPayment = async (paymentIntentId, amount = null) => {
-  if (logApiCallFunction) {
-    logApiCallFunction(
-      'Stripe refundPayment (placeholder)',
-      { paymentIntentId, amount },
-      { status: 'NOT_IMPLEMENTED' }
-    );
-  }
-  /*
-   * Placeholder – avoid throwing to keep UI free of error noise.
-   * Backend implementation should handle real refunds.
-   */
-  return Promise.resolve({
-    ok: true,
-    placeholder: true,
-    message: 'refundPayment skipped – requires server-side implementation',
-  });
 };

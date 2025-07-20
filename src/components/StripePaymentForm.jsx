@@ -115,7 +115,6 @@ const StripePaymentForm = () => {
     booking, 
     setFlowState, 
     setPaymentMethod,
-    setPaymentIntent,
     isDepositRequired,
     formatAmount,
     logApiCall,
@@ -234,15 +233,9 @@ const StripePaymentForm = () => {
       const paymentMethodId = intentType === 'setup_intent' 
         ? result.setupIntent.payment_method
         : result.paymentIntent.payment_method;
-      // Capture intent ID for later metadata update / possible refund
-      const intentId = intentType === 'setup_intent'
-        ? result.setupIntent.id
-        : result.paymentIntent.id;
       
       // Store the payment method ID
       setPaymentMethod(paymentMethodId);
-      // Store the intent reference in context
-      setPaymentIntent({ id: intentId, type: intentType });
       setPaymentResult({
         paymentMethodId,
         status: intentType === 'setup_intent' ? result.setupIntent.status : result.paymentIntent.status,
