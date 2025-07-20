@@ -173,7 +173,7 @@ const BookingForm = () => {
       setFlowState(FLOW_STATES.AWAITING_STRIPE);
       
       // Create a friendly customer description for Stripe
-      const customerDescription = `${customerDetails.firstName} ${customerDetails.lastName} - ${customerDetails.email}`;
+      const customerDescription = `${customerDetails.firstName}_${customerDetails.lastName}_-_${customerDetails.email}`;
       
       const piGetParams = {
         est: booking.est || 'TestNZA',
