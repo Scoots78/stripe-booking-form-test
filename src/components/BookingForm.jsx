@@ -35,6 +35,13 @@ const BookingForm = () => {
   const [keysLoaded, setKeysLoaded] = useState(false);
   const [depositInfoLoaded, setDepositInfoLoaded] = useState(false);
   const [currentStep, setCurrentStep] = useState('idle');
+  const [customerDetails, setCustomerDetails] = useState({
+    firstName: '',
+    lastName: '',
+    email: ''
+  });
+  const [customerDetailsErrors, setCustomerDetailsErrors] = useState({});
+  const [customerDetailsComplete, setCustomerDetailsComplete] = useState(false);
   
   const { 
     booking,
@@ -97,21 +104,83 @@ const BookingForm = () => {
     }
   }, []);
   
+  // Validate customer details
+  const validateCustomerDetails = () => {
+    const errors = {};
+    
+    if (!customerDetails.firstName.trim()) {
+      errors.firstName = 'First name is required';
+    }
+    
+    if (!customerDetails.lastName.trim()) {
+      errors.lastName = 'Last name is required';
+    }
+    
+    if (!customerDetails.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerDetails.email.trim())) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    setCustomerDetailsErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  // Handle customer details form submission
+  const handleCustomerDetailsSubmit = (e) => {
+    e.preventDefault();
+    
+    if (validateCustomerDetails()) {
+      setCustomerDetailsComplete(true);
+      setCurrentStep('customerDetailsComplete');
+      logInfo('Customer details collected', {
+        name: `${customerDetails.firstName} ${customerDetails.lastName}`,
+        email: customerDetails.email
+      });
+    }
+  };
+  
+  // Handle customer details input change
+  const handleCustomerDetailsChange = (e) => {
+    const { name, value } = e.target;
+    setCustomerDetails(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error for this field if it exists
+    if (customerDetailsErrors[name]) {
+      setCustomerDetailsErrors(prev => ({
+        ...prev,
+        [name]: null
+      }));
+    }
+  };
+  
   // Fetch Stripe keys using pi-get
   const fetchStripeKeys = useCallback(async () => {
     if (!booking) return;
+    
+    // Ensure customer details are collected before proceeding
+    if (!customerDetailsComplete) {
+      logError('Customer details must be collected before fetching Stripe keys');
+      return;
+    }
     
     try {
       setIsLoading(true);
       setCurrentStep('fetchingKeys');
       setFlowState(FLOW_STATES.AWAITING_STRIPE);
       
+      // Create a friendly customer description for Stripe
+      const customerDescription = `${customerDetails.firstName} ${customerDetails.lastName} - ${customerDetails.email}`;
+      
       const piGetParams = {
         est: booking.est || 'TestNZA',
         uid: booking.uid,
         type: 0,
-        // Temporary hard-coded description for testing purposes
-        desc: 'TestDescription',
+        // Use customer details for friendly description in Stripe admin
+        desc: customerDescription,
         created: booking.created
       };
       
@@ -127,7 +196,9 @@ const BookingForm = () => {
         cust: response.data.cust
       });
       
-      logInfo('Stripe keys retrieved successfully');
+      logInfo('Stripe keys retrieved successfully', {
+        customerDescription
+      });
       setKeysLoaded(true);
       setCurrentStep('keysLoaded');
       
@@ -142,7 +213,7 @@ const BookingForm = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [booking, setFlowState, setStripeKeys, logInfo, logError, setError]);
+  }, [booking, setFlowState, setStripeKeys, logInfo, logError, setError, customerDetails, customerDetailsComplete]);
   
   // Fetch deposit information
   const fetchDepositInfo = useCallback(async () => {
@@ -290,6 +361,13 @@ const BookingForm = () => {
     resetState();
     setKeysLoaded(false);
     setDepositInfoLoaded(false);
+    setCustomerDetailsComplete(false);
+    setCustomerDetails({
+      firstName: '',
+      lastName: '',
+      email: ''
+    });
+    setCustomerDetailsErrors({});
     setCurrentStep('idle');
     
     // Process the hold request
@@ -307,6 +385,13 @@ const BookingForm = () => {
     if (flowState === FLOW_STATES.IDLE) {
       setKeysLoaded(false);
       setDepositInfoLoaded(false);
+      setCustomerDetailsComplete(false);
+      setCustomerDetails({
+        firstName: '',
+        lastName: '',
+        email: ''
+      });
+      setCustomerDetailsErrors({});
       setCurrentStep('idle');
     }
   }, [flowState]);
@@ -314,6 +399,36 @@ const BookingForm = () => {
   // Disable form when not in IDLE state
   const isFormDisabled = flowState !== FLOW_STATES.IDLE && 
                          flowState !== FLOW_STATES.ERROR;
+  
+  // Format booking date for display
+  const formatBookingDate = () => {
+    if (!booking || !booking.date) return '';
+    
+    try {
+      const [year, month, day] = booking.date.split('-');
+      const date = new Date(year, month - 1, day);
+      
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return booking.date;
+    }
+  };
+  
+  // Format booking time for display
+  const formatBookingTime = () => {
+    if (!booking || !booking.time) return '';
+    
+    const hour = parseInt(booking.time, 10);
+    const isPM = hour >= 12;
+    const hour12 = hour % 12 || 12;
+    
+    return `${hour12}:00 ${isPM ? 'PM' : 'AM'}`;
+  };
   
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-4">
@@ -359,19 +474,140 @@ const BookingForm = () => {
         </div>
       </form>
       
-      {/* Manual Step Controls */}
-      {['holdComplete', 'keysLoaded', 'fetchingKeys', 'depositLoaded', 'fetchingDeposit']
+      {/* Customer Details Form - Show after hold is complete */}
+      {currentStep === 'holdComplete' && booking && (
+        <div className="mt-6 p-4 bg-gray-50 rounded-md">
+          <h3 className="text-lg font-medium text-gray-800 mb-3">Customer Details</h3>
+          
+          {/* Booking Summary */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-md">
+            <h4 className="text-sm font-medium text-blue-800 mb-1">Booking Summary</h4>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="text-gray-600">Date:</div>
+              <div className="font-medium">{formatBookingDate()}</div>
+              
+              <div className="text-gray-600">Time:</div>
+              <div className="font-medium">{formatBookingTime()}</div>
+              
+              <div className="text-gray-600">Party Size:</div>
+              <div className="font-medium">{booking.covers} guests</div>
+              
+              <div className="text-gray-600">Booking ID:</div>
+              <div className="font-medium">{booking.uid}</div>
+            </div>
+          </div>
+          
+          <form onSubmit={handleCustomerDetailsSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* First Name */}
+              <div>
+                <label htmlFor="firstName" className="form-label">
+                  First Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="firstName"
+                  name="firstName"
+                  type="text"
+                  value={customerDetails.firstName}
+                  onChange={handleCustomerDetailsChange}
+                  className={`form-input ${customerDetailsErrors.firstName ? 'border-red-500' : ''}`}
+                  placeholder="John"
+                  disabled={customerDetailsComplete || isLoading}
+                  required
+                />
+                {customerDetailsErrors.firstName && (
+                  <p className="mt-1 text-sm text-red-600">{customerDetailsErrors.firstName}</p>
+                )}
+              </div>
+              
+              {/* Last Name */}
+              <div>
+                <label htmlFor="lastName" className="form-label">
+                  Last Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="lastName"
+                  name="lastName"
+                  type="text"
+                  value={customerDetails.lastName}
+                  onChange={handleCustomerDetailsChange}
+                  className={`form-input ${customerDetailsErrors.lastName ? 'border-red-500' : ''}`}
+                  placeholder="Smith"
+                  disabled={customerDetailsComplete || isLoading}
+                  required
+                />
+                {customerDetailsErrors.lastName && (
+                  <p className="mt-1 text-sm text-red-600">{customerDetailsErrors.lastName}</p>
+                )}
+              </div>
+            </div>
+            
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="form-label">
+                Email <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                value={customerDetails.email}
+                onChange={handleCustomerDetailsChange}
+                className={`form-input ${customerDetailsErrors.email ? 'border-red-500' : ''}`}
+                placeholder="john.smith@example.com"
+                disabled={customerDetailsComplete || isLoading}
+                required
+              />
+              {customerDetailsErrors.email && (
+                <p className="mt-1 text-sm text-red-600">{customerDetailsErrors.email}</p>
+              )}
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span> Required fields
+              </p>
+              
+              {!customerDetailsComplete ? (
+                <button
+                  type="submit"
+                  className="form-button"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Processing...' : 'Save Customer Details'}
+                </button>
+              ) : (
+                <div className="flex items-center text-green-600">
+                  <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span>Customer Details Saved</span>
+                </div>
+              )}
+            </div>
+          </form>
+          
+          <div className="mt-3 text-sm text-gray-600">
+            <p>These details will be used to create a friendly customer reference in Stripe.</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Manual Step Controls for Card Required Bookings */}
+      {['customerDetailsComplete', 'keysLoaded', 'fetchingKeys', 'depositLoaded', 'fetchingDeposit']
         .includes(currentStep) && booking && booking.card > 0 && (
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
           <h3 className="text-sm font-medium text-yellow-800 mb-2">Manual Step Controls</h3>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={fetchStripeKeys}
-              disabled={isLoading || keysLoaded}
+              disabled={isLoading || keysLoaded || !customerDetailsComplete}
               className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                keysLoaded 
-                  ? 'bg-green-100 text-green-800 cursor-not-allowed' 
-                  : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                !customerDetailsComplete
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                  : keysLoaded 
+                    ? 'bg-green-100 text-green-800 cursor-not-allowed' 
+                    : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
               }`}
             >
               {isLoading && currentStep === 'fetchingKeys' 
@@ -420,7 +656,7 @@ const BookingForm = () => {
       )}
       
       {/* No Card Required - Manual Proceed */}
-      {currentStep === 'holdComplete' && booking && booking.card === 0 && (
+      {currentStep === 'customerDetailsComplete' && booking && booking.card === 0 && (
         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
           <h3 className="text-sm font-medium text-yellow-800 mb-2">No Card Required</h3>
           <p className="text-sm text-gray-600 mb-2">
@@ -468,6 +704,17 @@ const BookingForm = () => {
               Booking Hold
             </li>
             
+            <li className="flex items-center mt-1">
+              <svg className={`w-4 h-4 mr-1.5 ${!customerDetailsComplete ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
+                {!customerDetailsComplete ? (
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                ) : (
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                )}
+              </svg>
+              Collect Customer Details
+            </li>
+            
             {isCardRequired() && (
               <>
                 <li className="flex items-center mt-1">
@@ -513,7 +760,7 @@ const BookingForm = () => {
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 )}
               </svg>
-              Collect Customer Details
+              Complete Booking Details
             </li>
             
             <li className="flex items-center mt-1">
