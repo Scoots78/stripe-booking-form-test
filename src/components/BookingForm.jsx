@@ -110,7 +110,8 @@ const BookingForm = () => {
         est: booking.est || 'TestNZA',
         uid: booking.uid,
         type: 0,
-        desc: 0,
+        // Temporary hard-coded description for testing purposes
+        desc: 'TestDescription',
         created: booking.created
       };
       
