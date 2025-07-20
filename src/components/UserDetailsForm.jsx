@@ -142,6 +142,26 @@ const UserDetailsForm = () => {
         name: `${formData.firstName} ${formData.lastName}`,
         bookingId: booking.uid
       });
+
+      // ------------------------------------------------------------------
+      // Re-validate / reactivate the booking with a second restore call
+      // ------------------------------------------------------------------
+      const restoreParams = {
+        est: booking.est,
+        uid: booking.uid,
+        type: 0
+      };
+
+      const restoreResponse = await eveveApi.restore(restoreParams);
+
+      if (!restoreResponse.data.ok) {
+        throw new Error('Booking validation failed before update');
+      }
+
+      // Log restore success
+      logInfo('Booking revalidated successfully prior to customer update', {
+        bookingId: booking.uid
+      });
       
       // Call the update API
       const response = await eveveApi.update(updateParams);
