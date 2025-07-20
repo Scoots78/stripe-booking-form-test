@@ -673,6 +673,7 @@ const BookingForm = () => {
       )}
       
       {/* Sample URLs */}
+      {flowState === FLOW_STATES.IDLE && (
       <div className="mt-6">
         <h3 className="text-sm font-medium text-gray-700 mb-2">Sample Test URLs</h3>
         <div className="space-y-2">
@@ -691,6 +692,7 @@ const BookingForm = () => {
           ))}
         </div>
       </div>
+      )}
       
       {/* Current Flow State */}
       {flowState !== FLOW_STATES.IDLE && (
