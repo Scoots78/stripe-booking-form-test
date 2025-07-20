@@ -104,11 +104,25 @@ const StripePaymentForm = () => {
   const [formErrors, setFormErrors] = useState({});
   const [showSuccess, setShowSuccess] = useState(false);
   
-  // Expanded user details state
+  const { 
+    stripe: stripeContext, 
+    booking, 
+    setFlowState, 
+    setPaymentMethod,
+    isDepositRequired,
+    formatAmount,
+    logApiCall,
+    setError,
+    customerDetails
+  } = useFlow();
+  
+  const { logInfo, logSuccess, logError } = useLogger();
+
+  // Expanded user details state - initialize with customerDetails from context
   const [userDetails, setUserDetails] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
+    firstName: customerDetails?.firstName || '',
+    lastName: customerDetails?.lastName || '',
+    email: customerDetails?.email || '',
     phone: '',
     notes: '',
     dietary: '',
@@ -121,24 +135,32 @@ const StripePaymentForm = () => {
   const [paymentResult, setPaymentResult] = useState(null);
   const [pmIdAttached, setPmIdAttached] = useState(false);
 
-  const { 
-    stripe: stripeContext, 
-    booking, 
-    setFlowState, 
-    setPaymentMethod,
-    isDepositRequired,
-    formatAmount,
-    logApiCall,
-    setError
-  } = useFlow();
-  
-  const { logInfo, logSuccess, logError } = useLogger();
-
   // Set up API logger
   useEffect(() => {
     stripeApi.setApiLogger(logApiCall);
     eveveApi.setApiLogger(logApiCall);
   }, [logApiCall]);
+
+  // Update user details when customerDetails from context changes
+  useEffect(() => {
+    if (customerDetails) {
+      setUserDetails(prevDetails => ({
+        ...prevDetails,
+        firstName: customerDetails.firstName || prevDetails.firstName,
+        lastName: customerDetails.lastName || prevDetails.lastName,
+        email: customerDetails.email || prevDetails.email
+      }));
+      
+      // Log that details were pre-filled
+      if (customerDetails.firstName || customerDetails.lastName || customerDetails.email) {
+        logInfo('Pre-filled customer details from previous step', {
+          firstName: customerDetails.firstName,
+          lastName: customerDetails.lastName,
+          email: customerDetails.email
+        });
+      }
+    }
+  }, [customerDetails, logInfo]);
 
   // Determine if we're handling a deposit or no-show protection
   const _paymentType = isDepositRequired() ? 'deposit' : 'noshow'; // reserved for future logic

@@ -24,6 +24,7 @@ const ActionTypes = {
   RESET_STATE: 'RESET_STATE',
   SET_ERROR: 'SET_ERROR',
   SET_PAYMENT_METHOD: 'SET_PAYMENT_METHOD',
+  SET_CUSTOMER_DETAILS: 'SET_CUSTOMER_DETAILS',
 };
 
 // Initial state
@@ -41,6 +42,12 @@ const initialState = {
   error: null,
   // Timestamp (ms) at which the 3-minute booking hold expires.
   holdExpiry: null,
+  // Customer details collected after HOLD but before payment
+  customerDetails: {
+    firstName: '',
+    lastName: '',
+    email: '',
+  },
 };
 
 // Reducer function
@@ -108,6 +115,15 @@ function flowReducer(state, action) {
         ...state,
         paymentMethod: action.payload,
       };
+      
+    case ActionTypes.SET_CUSTOMER_DETAILS:
+      return {
+        ...state,
+        customerDetails: {
+          ...state.customerDetails,
+          ...action.payload,
+        },
+      };
     
     case ActionTypes.RESET_STATE:
       return initialState;
@@ -155,6 +171,10 @@ export function FlowProvider({ children }) {
   
   const setPaymentMethod = useCallback((pmId) => {
     dispatch({ type: ActionTypes.SET_PAYMENT_METHOD, payload: pmId });
+  }, [dispatch]);
+  
+  const setCustomerDetails = useCallback((details) => {
+    dispatch({ type: ActionTypes.SET_CUSTOMER_DETAILS, payload: details });
   }, [dispatch]);
   
   const resetState = useCallback(() => {
@@ -212,6 +232,7 @@ export function FlowProvider({ children }) {
     logApiCall,
     setError,
     setPaymentMethod,
+    setCustomerDetails,
     resetState,
     isCardRequired,
     isDepositRequired,

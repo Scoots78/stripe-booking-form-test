@@ -35,7 +35,10 @@ const BookingForm = () => {
   const [keysLoaded, setKeysLoaded] = useState(false);
   const [depositInfoLoaded, setDepositInfoLoaded] = useState(false);
   const [currentStep, setCurrentStep] = useState('idle');
-  const [customerDetails, setCustomerDetails] = useState({
+  // Local form state for customer details. The *context* function to save
+  // details globally is also named `setCustomerDetails`, so use a distinct
+  // name here to avoid collisions.
+  const [customerDetails, setLocalCustomerDetails] = useState({
     firstName: '',
     lastName: '',
     email: ''
@@ -53,6 +56,7 @@ const BookingForm = () => {
     isCardRequired,
     logApiCall,
     setError,
+    setCustomerDetails,
     resetState
   } = useFlow();
   
@@ -131,6 +135,8 @@ const BookingForm = () => {
     e.preventDefault();
     
     if (validateCustomerDetails()) {
+      // Persist details in global flow context for use in other components
+      setCustomerDetails(customerDetails);          // save to context
       setCustomerDetailsComplete(true);
       setCurrentStep('customerDetailsComplete');
       logInfo('Customer details collected', {
@@ -143,7 +149,7 @@ const BookingForm = () => {
   // Handle customer details input change
   const handleCustomerDetailsChange = (e) => {
     const { name, value } = e.target;
-    setCustomerDetails(prev => ({
+    setLocalCustomerDetails(prev => ({
       ...prev,
       [name]: value
     }));
@@ -362,7 +368,7 @@ const BookingForm = () => {
     setKeysLoaded(false);
     setDepositInfoLoaded(false);
     setCustomerDetailsComplete(false);
-    setCustomerDetails({
+    setLocalCustomerDetails({
       firstName: '',
       lastName: '',
       email: ''
@@ -386,7 +392,7 @@ const BookingForm = () => {
       setKeysLoaded(false);
       setDepositInfoLoaded(false);
       setCustomerDetailsComplete(false);
-      setCustomerDetails({
+    setLocalCustomerDetails({
         firstName: '',
         lastName: '',
         email: ''
