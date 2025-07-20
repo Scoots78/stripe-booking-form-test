@@ -24,6 +24,7 @@ const ActionTypes = {
   RESET_STATE: 'RESET_STATE',
   SET_ERROR: 'SET_ERROR',
   SET_PAYMENT_METHOD: 'SET_PAYMENT_METHOD',
+  SET_PAYMENT_INTENT: 'SET_PAYMENT_INTENT',
 };
 
 // Initial state
@@ -34,6 +35,8 @@ const initialState = {
     publicKey: null,
     cust: null,
     paymentType: null, // 'deposit' or 'noshow'
+    paymentIntentId: null, // ID of the payment/setup intent
+    intentType: null, // 'payment_intent' or 'setup_intent'
   },
   paymentMethod: null, // Stripe payment method ID after card entry
   flowState: FLOW_STATES.IDLE,
@@ -108,6 +111,16 @@ function flowReducer(state, action) {
         ...state,
         paymentMethod: action.payload,
       };
+    
+    case ActionTypes.SET_PAYMENT_INTENT:
+      return {
+        ...state,
+        stripe: {
+          ...state.stripe,
+          paymentIntentId: action.payload.id,
+          intentType: action.payload.type,
+        },
+      };
       
     case ActionTypes.RESET_STATE:
       return initialState;
@@ -155,6 +168,10 @@ export function FlowProvider({ children }) {
   
   const setPaymentMethod = useCallback((pmId) => {
     dispatch({ type: ActionTypes.SET_PAYMENT_METHOD, payload: pmId });
+  }, [dispatch]);
+  
+  const setPaymentIntent = useCallback((intentData) => {
+    dispatch({ type: ActionTypes.SET_PAYMENT_INTENT, payload: intentData });
   }, [dispatch]);
   
   const resetState = useCallback(() => {
@@ -212,6 +229,7 @@ export function FlowProvider({ children }) {
     logApiCall,
     setError,
     setPaymentMethod,
+    setPaymentIntent,
     resetState,
     isCardRequired,
     isDepositRequired,

@@ -350,4 +350,56 @@ export default {
   getIntentType,
   confirmIntent,
   setApiLogger,
+
+  updatePaymentDescription,
+  refundPayment,
+};
+
+/**
+ * Update the description / metadata on a PaymentIntent or SetupIntent.
+ * ───────────────────────────────────────────────────────────────────
+ * ⚠  THIS **MUST** BE IMPLEMENTED ON A SECURE SERVER.
+ *    Browser-side code cannot use your Stripe secret key.  This placeholder
+ *    exists so frontend calls compile; implement server call separately.
+ *
+ * @param {string} intentId - PaymentIntent / SetupIntent id (e.g. pi_123…)
+ * @param {string} description - New description including customer details
+ * @param {Object} [metadata] - Extra metadata to attach
+ */
+export const updatePaymentDescription = async (
+  intentId,
+  description,
+  metadata = {}
+) => {
+  if (logApiCallFunction) {
+    logApiCallFunction(
+      'Stripe updatePaymentDescription (placeholder)',
+      { intentId, description, metadata },
+      { status: 'NOT_IMPLEMENTED' }
+    );
+  }
+  throw new Error(
+    'updatePaymentDescription must be implemented server-side with your Stripe secret key'
+  );
+};
+
+/**
+ * Refund a captured PaymentIntent.
+ * ─────────────────────────────────
+ * ⚠ Requires secret-key; placeholder for now.
+ *
+ * @param {string} paymentIntentId - The id of the intent to refund
+ * @param {number|null} [amount=null] - Amount in cents. Null = full refund
+ */
+export const refundPayment = async (paymentIntentId, amount = null) => {
+  if (logApiCallFunction) {
+    logApiCallFunction(
+      'Stripe refundPayment (placeholder)',
+      { paymentIntentId, amount },
+      { status: 'NOT_IMPLEMENTED' }
+    );
+  }
+  throw new Error(
+    'refundPayment must be implemented server-side with your Stripe secret key'
+  );
 };

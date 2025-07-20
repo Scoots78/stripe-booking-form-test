@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFlow, FLOW_STATES } from '../context/FlowContext';
 import * as eveveApi from '../api/eveve';
+import * as stripeApi from '../api/stripe';
 import useLogger from '../hooks/useLogger';
 
 const UserDetailsForm = () => {
@@ -37,6 +38,7 @@ const UserDetailsForm = () => {
   // Set up API logger
   useEffect(() => {
     eveveApi.setApiLogger(logApiCall);
+    stripeApi.setApiLogger(logApiCall);
   }, [logApiCall]);
   
   // Only show this component when in the collecting user state or if card is confirmed
@@ -170,6 +172,30 @@ const UserDetailsForm = () => {
         throw new Error('Booking update failed');
       }
       
+      // After successful update, update the Stripe payment description with customer details
+      if (stripe.paymentIntentId) {
+        try {
+          // Generate descriptive text
+          const bookingTime = formatBookingTime();
+          const description = `${isDepositRequired() ? 'Deposit' : 'No-Show Protection'} HOLD ${booking.covers}pax at ${bookingTime} ${booking.est} ${booking.uid} - ${formData.firstName} ${formData.lastName} (${formData.email})`;
+          
+          // Update payment description in Stripe
+          await stripeApi.updatePaymentDescription(stripe.paymentIntentId, description, {
+            customer_name: `${formData.firstName} ${formData.lastName}`,
+            customer_email: formData.email,
+            customer_phone: formData.phone
+          });
+          
+          logInfo('Updated Stripe payment description', {
+            intentId: stripe.paymentIntentId,
+            description
+          });
+        } catch (stripeError) {
+          // Log but don't fail the overall process
+          logError('Failed to update Stripe payment description', stripeError);
+        }
+      }
+      
       // Log success
       logSuccess('Booking successfully completed', {
         bookingId: booking.uid,
@@ -188,6 +214,22 @@ const UserDetailsForm = () => {
     } catch (error) {
       // Log the error
       logError('Failed to update booking with customer details', error);
+      
+      // If update failed and we have a payment intent, attempt to refund
+      if (stripe.paymentIntentId && stripe.intentType === 'payment_intent') {
+        try {
+          // Attempt to refund the payment
+          await stripeApi.refundPayment(stripe.paymentIntentId);
+          
+          logInfo('Initiated refund for failed booking', {
+            intentId: stripe.paymentIntentId,
+            amount: formatAmount(stripe.amount)
+          });
+        } catch (refundError) {
+          // Log but don't throw - the original error is more important
+          logError('Failed to process refund', refundError);
+        }
+      }
       
       // Set error state
       setError({
