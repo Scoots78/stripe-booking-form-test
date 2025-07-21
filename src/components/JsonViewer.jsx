@@ -51,24 +51,51 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
       (path ? `${path}.${key}` : key) : 
       (arrayIndex !== null ? `${path}[${arrayIndex}]` : path);
     
+    // If this is an array item with an index
+    if (arrayIndex !== null) {
+      return (
+        <div className="flex">
+          <span className="text-yellow-600">{arrayIndex}: </span>
+          {renderValueByType(value, type, currentPath, null)}
+        </div>
+      );
+    }
+    
+    // If this is a key-value pair
+    if (key !== null) {
+      return (
+        <div className="flex">
+          <span className="text-blue-600 font-medium">{key}</span>
+          <span className="text-gray-900">: </span>
+          {renderValueByType(value, type, currentPath, null)}
+        </div>
+      );
+    }
+    
+    // If this is a standalone value (root)
+    return renderValueByType(value, type, currentPath, label);
+  };
+  
+  // Helper function to render the actual value based on its type
+  const renderValueByType = (value, type, path, label) => {
     switch (type) {
       case 'object': {
-        return renderObject(value, currentPath, key);
+        return renderObject(value, path, label);
       }
       case 'array': {
-        return renderArray(value, currentPath, key);
+        return renderArray(value, path, label);
       }
       case 'string': {
-        return <span className="json-string">&quot;{value}&quot;</span>;
+        return <span className="text-red-600">&quot;{value}&quot;</span>;
       }
       case 'number': {
-        return <span className="json-number">{value}</span>;
+        return <span className="text-green-600">{value}</span>;
       }
       case 'boolean': {
-        return <span className="json-boolean">{value.toString()}</span>;
+        return <span className="text-blue-500">{value.toString()}</span>;
       }
       case 'null': {
-        return <span className="json-null">null</span>;
+        return <span className="text-blue-500">null</span>;
       }
       default: {
         return <span>{String(value)}</span>;
@@ -82,14 +109,20 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
     const isEmpty = Object.keys(obj).length === 0;
     
     return (
-      <div className="json-object">
-        <span onClick={toggleCollapse(path)} className="cursor-pointer">
-          {label && <span className="json-key">{label}: </span>}
+      <div className="my-1">
+        <div onClick={toggleCollapse(path)} className="cursor-pointer flex">
+          {label && (
+            <>
+              <span className="text-blue-600 font-medium">{label}</span>
+              <span className="text-gray-900">: </span>
+            </>
+          )}
           {isEmpty ? (
-            <span>{'{}'}</span>
+            <span className="text-gray-900">{'{}'}</span>
           ) : (
             <>
-              <span>{isCollapsed ? '{...}' : '{'}</span>
+              <span className="text-gray-900">{'{'}</span>
+              {isCollapsed && <span className="text-gray-400">...</span>}
               {!isCollapsed && (
                 <span className="text-gray-400 text-xs ml-1">
                   {Object.keys(obj).length} {Object.keys(obj).length === 1 ? 'item' : 'items'}
@@ -97,10 +130,10 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
               )}
             </>
           )}
-        </span>
+        </div>
         
         {!isEmpty && !isCollapsed && (
-          <div className="pl-4 border-l border-gray-200">
+          <div className="pl-4 border-l border-gray-200 ml-2">
             {Object.entries(obj).map(([key, value], index) => (
               <div key={`${path}-${key}-${index}`} className="my-1">
                 {renderValue(value, key, null, path)}
@@ -109,7 +142,7 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
           </div>
         )}
         
-        {!isEmpty && !isCollapsed && <div>{'}'}</div>}
+        {!isEmpty && !isCollapsed && <div className="text-gray-900">{'}'}</div>}
       </div>
     );
   };
@@ -120,14 +153,20 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
     const isEmpty = arr.length === 0;
     
     return (
-      <div className="json-array">
-        <span onClick={toggleCollapse(path)} className="cursor-pointer">
-          {label && <span className="json-key">{label}: </span>}
+      <div className="my-1">
+        <div onClick={toggleCollapse(path)} className="cursor-pointer flex">
+          {label && (
+            <>
+              <span className="text-blue-600 font-medium">{label}</span>
+              <span className="text-gray-900">: </span>
+            </>
+          )}
           {isEmpty ? (
-            <span>[]</span>
+            <span className="text-gray-900">{'[]'}</span>
           ) : (
             <>
-              <span>{isCollapsed ? '[...]' : '['}</span>
+              <span className="text-gray-900">{'['}</span>
+              {isCollapsed && <span className="text-gray-400">...</span>}
               {!isCollapsed && (
                 <span className="text-gray-400 text-xs ml-1">
                   {arr.length} {arr.length === 1 ? 'item' : 'items'}
@@ -135,10 +174,10 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
               )}
             </>
           )}
-        </span>
+        </div>
         
         {!isEmpty && !isCollapsed && (
-          <div className="pl-4 border-l border-gray-200">
+          <div className="pl-4 border-l border-gray-200 ml-2">
             {arr.map((item, index) => (
               <div key={`${path}-${index}`} className="my-1">
                 {renderValue(item, null, index, path)}
@@ -147,22 +186,22 @@ const JsonViewer = ({ data, initialCollapsed = false, level = 0, label = null })
           </div>
         )}
         
-        {!isEmpty && !isCollapsed && <div>{']'}</div>}
+        {!isEmpty && !isCollapsed && <div className="text-gray-900">{']'}</div>}
       </div>
     );
   };
 
   // Main render for the root JSON viewer
   if (data === undefined || data === null) {
-    return <div className="json-viewer">null</div>;
+    return <div className="font-mono text-sm">null</div>;
   }
 
   return (
-    <div className="json-viewer relative">
+    <div className="relative font-mono text-sm leading-relaxed">
       {/* Copy button */}
       <button 
         onClick={copyToClipboard}
-        className="copy-button"
+        className="absolute top-0 right-0 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
         title="Copy to clipboard"
       >
         {copied ? 'Copied!' : 'Copy'}
