@@ -28,6 +28,7 @@ const flowStateProgress = {
 const Header = () => {
   const { flowState, resetState, booking, error, getHoldTimeRemaining } = useFlow();
   const [timeRemaining, setTimeRemaining] = useState(null);
+  const [showExpiryWarning, setShowExpiryWarning] = useState(false);
 
   // Format time as MM:SS
   const formatTimeRemaining = (ms) => {
@@ -54,17 +55,23 @@ const Header = () => {
       return;
     }
     // initial value
-    setTimeRemaining(getHoldTimeRemaining());
+    const initial = getHoldTimeRemaining();
+    setTimeRemaining(initial);
+    if (initial <= 0) setShowExpiryWarning(true);
 
     const id = setInterval(() => {
-      setTimeRemaining(getHoldTimeRemaining());
+      const remaining = getHoldTimeRemaining();
+      setTimeRemaining(remaining);
+      if (remaining <= 0) {
+        setShowExpiryWarning(true);
+      }
     }, 1000);
 
     return () => clearInterval(id);
   }, [booking, getHoldTimeRemaining]);
   
   return (
-    <header className="bg-white shadow-md">
+    <header className="bg-white shadow-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           {/* App Title */}
@@ -123,6 +130,22 @@ const Header = () => {
         {error && (
           <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
             {error.message || 'An error occurred'}
+          </div>
+        )}
+
+        {/* Expiry warning */}
+        {showExpiryWarning && (
+          <div className="mt-2 text-sm text-yellow-800 bg-yellow-50 p-2 rounded flex justify-between items-start">
+            <span>
+              Timer has expired. You may encounter an error if you proceed without resetting or completing the flow.
+            </span>
+            <button
+              onClick={() => setShowExpiryWarning(false)}
+              className="ml-4 text-yellow-900 hover:text-yellow-700 font-semibold"
+              aria-label="Dismiss expiry warning"
+            >
+              ✕
+            </button>
           </div>
         )}
       </div>

@@ -13,7 +13,8 @@ function App() {
       {/* Header - Always visible */}
       <Header />
       
-      <main className="max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      {/* extra top padding so content clears sticky header */}
+      <main className="pt-24 max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="space-y-4">
           {/* Booking Form - Always visible but disabled in certain states */}
           <UnifiedBookingForm />
