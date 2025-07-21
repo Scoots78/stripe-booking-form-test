@@ -700,25 +700,7 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
     setFormErrors({});
     
     try {
-      // Step 1: Revalidate booking before final submission
-      const restoreParams = {
-        est: booking.est,
-        uid: booking.uid,
-        type: 0
-      };
-
-      const restoreResponse = await eveveApi.restore(restoreParams);
-
-      if (!restoreResponse.data.ok) {
-        throw new Error('Booking validation failed before update');
-      }
-
-      // Log restore success
-      logInfo('Booking revalidated successfully prior to customer update', {
-        bookingId: booking.uid
-      });
-      
-      // Step 2: Process payment and update booking in parallel if card is required
+      // Step 1: Process payment and update booking in parallel if card is required
       if (isCardRequired() && cardComplete) {
         // Process both payment and booking update in parallel
         const [paymentResult, updateResult] = await Promise.all([

@@ -129,18 +129,6 @@ export const depositGet = (params) => {
 };
 
 /**
- * RESTORE - Validate booking UID
- * @param {Object} params - Query parameters
- * @param {string} params.est - Establishment code
- * @param {number} params.uid - Booking UID
- * @param {number} params.type - Type (usually 0)
- * @returns {Promise} - API response promise
- */
-export const restore = (params) => {
-  return eveveApi.get(`${BASE_URLS.UK}/api/restore`, { params });
-};
-
-/**
  * PM-ID - Attach payment method to intent
  * @param {Object} params - Query parameters
  * @param {string} params.est - Establishment code
@@ -198,7 +186,6 @@ export default {
   hold,
   piGet,
   depositGet,
-  restore,
   pmId,
   update,
   ccRequest,
