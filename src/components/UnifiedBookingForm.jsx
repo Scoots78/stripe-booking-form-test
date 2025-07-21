@@ -700,29 +700,39 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
     setFormErrors({});
     
     try {
-      // Step 1: Process payment and update booking in parallel if card is required
+      // ------------------------------------------------------------
+      // STEP 1 – CARD REQUIRED: PROCESS PAYMENT *FIRST*
+      // ------------------------------------------------------------
       if (isCardRequired() && cardComplete) {
-        // Process both payment and booking update in parallel
-        const [paymentResult, updateResult] = await Promise.all([
-          processPayment(),
-          updateBooking()
-        ]);
-        
-        // Handle payment processing result
+        // 1A. Process payment
+        const paymentResult = await processPayment();
+
+        // If card is declined (or any payment failure), abort – DO NOT call web/update
         if (!paymentResult.success) {
-          throw new Error(paymentResult.error?.message || 'Payment processing failed');
+          throw new Error(
+            paymentResult.error?.message || 'Payment processing failed'
+          );
         }
-        
-        // Handle booking update result
+
+        // 1B. Update booking now that payment succeeded
+        const updateResult = await updateBooking();
+
         if (!updateResult.success) {
-          throw new Error(updateResult.error?.message || 'Booking update failed');
+          throw new Error(
+            updateResult.error?.message || 'Booking update failed'
+          );
         }
-        
-        // Attach payment method to booking
-        const attachResult = await attachPaymentMethod(paymentResult.paymentMethodId);
-        
+
+        // 1C. Attach payment method after successful update
+        const attachResult = await attachPaymentMethod(
+          paymentResult.paymentMethodId
+        );
+
         if (!attachResult.success) {
-          throw new Error(attachResult.error?.message || 'Failed to attach payment method to booking');
+          throw new Error(
+            attachResult.error?.message ||
+              'Failed to attach payment method to booking'
+          );
         }
         
         // Log combined success
