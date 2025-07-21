@@ -1,13 +1,11 @@
 import { useFlow, FLOW_STATES } from './context/FlowContext';
 import Header from './components/Header';
-import BookingForm from './components/BookingForm';
-import StripePaymentForm from './components/StripePaymentForm';
-import UserDetailsForm from './components/UserDetailsForm';
+import UnifiedBookingForm from './components/UnifiedBookingForm';
 import LogDisplay from './components/LogDisplay';
 import useLogger from './hooks/useLogger';
 
 function App() {
-  const { flowState, isCardRequired } = useFlow();
+  const { flowState } = useFlow();
   useLogger(); // ensure logger hook initialises (no side-effect needed here)
 
   return (
@@ -18,18 +16,7 @@ function App() {
       <main className="max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         <div className="space-y-4">
           {/* Booking Form - Always visible but disabled in certain states */}
-          <BookingForm />
-          
-          {/* Stripe Payment Form - Only visible when card required and in entering card state */}
-          {isCardRequired() && flowState === FLOW_STATES.ENTERING_CARD && (
-            <StripePaymentForm />
-          )}
-          
-          {/* User Details Form - Only visible after card confirmed or if no card required */}
-          {(flowState === FLOW_STATES.CARD_CONFIRMED || 
-            (flowState === FLOW_STATES.COLLECTING_USER && !isCardRequired())) && (
-            <UserDetailsForm />
-          )}
+          <UnifiedBookingForm />
           
           {/* Completion Message */}
           {flowState === FLOW_STATES.COMPLETED && (
