@@ -99,7 +99,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
   const [keysLoaded, setKeysLoaded] = useState(false);
   const [depositInfoLoaded, setDepositInfoLoaded] = useState(false);
   const [cardComplete, setCardComplete] = useState(false);
-  const [validatedBooking, setValidatedBooking] = useState(false);
   const [paymentProcessed, setPaymentProcessed] = useState(false);
   const [paymentMethodAttached, setPaymentMethodAttached] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
@@ -119,9 +118,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
   // Error state
   const [formErrors, setFormErrors] = useState({});
   const [cardError, setCardError] = useState('');
-  
-  // Payment result state
-  const [paymentResult, setPaymentResult] = useState(null);
   
   // Current step tracking
   const [currentStep, setCurrentStep] = useState('idle');
@@ -488,58 +484,18 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
     logInfo('Proceeding to customer details');
   }, [setFlowState, logInfo]);
   
-  // Validate booking is still valid
-  const validateBooking = async () => {
-    setIsLoading(true);
-    setCardError('');
-    setCurrentStep('validatingBooking');
-    
-    try {
-      // Verify booking is still valid by calling restore
-      const restoreParams = {
-        est: booking.est,
-        uid: booking.uid,
-        type: 0
-      };
-      
-      const restoreResponse = await eveveApi.restore(restoreParams);
-      
-      if (!restoreResponse.data.ok) {
-        throw new Error('Booking is no longer valid');
-      }
-
-      logInfo('Booking verified as valid', { uid: booking.uid });
-      setValidatedBooking(true);
-      setCurrentStep('readyForPayment');
-      return true;
-    } catch (error) {
-      logError('Booking validation failed', error);
-      setCardError('Booking validation failed: ' + error.message);
-      setCurrentStep('error');
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   // Process payment with Stripe
   const processPayment = async () => {
     if (!stripe || !elements) {
       setCardError('Stripe.js has not loaded yet');
-      return;
+      return false;
     }
     
     if (!cardComplete) {
       setCardError('Please complete your card details');
-      return;
-    }
-    
-    if (!validatedBooking) {
-      setCardError('Please validate the booking first');
-      return;
+      return false;
     }
 
-    setIsLoading(true);
     setCardError('');
     setCurrentStep('processingPayment');
 
@@ -593,11 +549,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
       
       // Store the payment method ID
       setPaymentMethod(paymentMethodId);
-      setPaymentResult({
-        paymentMethodId,
-        status: intentType === 'setup_intent' ? result.setupIntent.status : result.paymentIntent.status,
-        type: intentType
-      });
       
       logSuccess('Payment processed successfully', {
         paymentMethodId: paymentMethodId.substring(0, 5) + '...',
@@ -605,8 +556,10 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
       });
       
       setPaymentProcessed(true);
-      setCurrentStep('paymentComplete');
-      return true;
+      return {
+        success: true,
+        paymentMethodId
+      };
     } catch (error) {
       // Log the error
       logError('Payment processing failed', {
@@ -616,28 +569,22 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
         decline_code: error.decline_code
       });
       
-      // Set the error message
-      setCardError(
-        error.message ||
-        'An error occurred while processing your payment. Please try again.'
-      );
-      
-      setCurrentStep('error');
-      return false;
-    } finally {
-      setIsLoading(false);
+      return {
+        success: false,
+        error
+      };
     }
   };
   
   // Attach payment method to booking
-  const attachPaymentMethod = async () => {
-    if (!paymentResult || !paymentResult.paymentMethodId) {
-      setCardError('No payment method available to attach');
-      return;
+  const attachPaymentMethod = async (paymentMethodId) => {
+    if (!paymentMethodId) {
+      return {
+        success: false,
+        error: new Error('No payment method available to attach')
+      };
     }
     
-    setIsLoading(true);
-    setCardError('');
     setCurrentStep('attachingPaymentMethod');
     
     try {
@@ -646,7 +593,7 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
         est: booking.est,
         uid: booking.uid,
         created: booking.created,
-        pm: paymentResult.paymentMethodId,
+        pm: paymentMethodId,
         total: stripeContext.amount,
         totalFloat: stripeContext.amount / 100,
         type: 0
@@ -664,57 +611,27 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
         : 'Card successfully stored for no-show protection';
         
       logSuccess(successMessage, {
-        paymentMethodId: paymentResult.paymentMethodId.substring(0, 5) + '...'
+        paymentMethodId: paymentMethodId.substring(0, 5) + '...'
       });
       
       setPaymentMethodAttached(true);
-      setCurrentStep('additionalDetails');
-      return true;
+      return {
+        success: true
+      };
     } catch (error) {
       // Log the error
       logError('Failed to attach payment method', error);
       
-      // Set the error message
-      setCardError(
-        error.message ||
-        'An error occurred while attaching the payment method to your booking.'
-      );
-      
-      setCurrentStep('error');
-      return false;
-    } finally {
-      setIsLoading(false);
+      return {
+        success: false,
+        error
+      };
     }
   };
   
-  // Complete booking with customer details
-  const completeBooking = async () => {
-    // Validate all fields
-    if (!validateFullForm()) {
-      return;
-    }
-    
-    setIsLoading(true);
-    
+  // Update booking with customer details
+  const updateBooking = async () => {
     try {
-      // Revalidate booking before final submission
-      const restoreParams = {
-        est: booking.est,
-        uid: booking.uid,
-        type: 0
-      };
-
-      const restoreResponse = await eveveApi.restore(restoreParams);
-
-      if (!restoreResponse.data.ok) {
-        throw new Error('Booking validation failed before update');
-      }
-
-      // Log restore success
-      logInfo('Booking revalidated successfully prior to customer update', {
-        bookingId: booking.uid
-      });
-      
       // Prepare update parameters
       const updateParams = {
         est: booking.est,
@@ -753,22 +670,110 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
       }
       
       // Log success
-      logSuccess('Booking successfully completed', {
+      logSuccess('Booking details successfully updated', {
         bookingId: booking.uid,
-        customerName: `${customerDetails.firstName} ${customerDetails.lastName}`,
-        paymentStatus: isDepositRequired() 
-          ? 'Deposit Charged' 
-          : 'Card Stored for No-Show Protection'
+        customerName: `${customerDetails.firstName} ${customerDetails.lastName}`
       });
       
-      // Update state
+      return {
+        success: true
+      };
+    } catch (error) {
+      // Log the error
+      logError('Failed to update booking with customer details', error);
+      
+      return {
+        success: false,
+        error
+      };
+    }
+  };
+  
+  // Complete booking with customer details - COMPLETELY REWRITTEN
+  const completeBooking = async () => {
+    // Validate all fields
+    if (!validateFullForm()) {
+      return;
+    }
+    
+    setIsLoading(true);
+    setFormErrors({});
+    
+    try {
+      // Step 1: Revalidate booking before final submission
+      const restoreParams = {
+        est: booking.est,
+        uid: booking.uid,
+        type: 0
+      };
+
+      const restoreResponse = await eveveApi.restore(restoreParams);
+
+      if (!restoreResponse.data.ok) {
+        throw new Error('Booking validation failed before update');
+      }
+
+      // Log restore success
+      logInfo('Booking revalidated successfully prior to customer update', {
+        bookingId: booking.uid
+      });
+      
+      // Step 2: Process payment and update booking in parallel if card is required
+      if (isCardRequired() && cardComplete) {
+        // Process both payment and booking update in parallel
+        const [paymentResult, updateResult] = await Promise.all([
+          processPayment(),
+          updateBooking()
+        ]);
+        
+        // Handle payment processing result
+        if (!paymentResult.success) {
+          throw new Error(paymentResult.error?.message || 'Payment processing failed');
+        }
+        
+        // Handle booking update result
+        if (!updateResult.success) {
+          throw new Error(updateResult.error?.message || 'Booking update failed');
+        }
+        
+        // Attach payment method to booking
+        const attachResult = await attachPaymentMethod(paymentResult.paymentMethodId);
+        
+        if (!attachResult.success) {
+          throw new Error(attachResult.error?.message || 'Failed to attach payment method to booking');
+        }
+        
+        // Log combined success
+        logSuccess('Booking successfully completed with payment', {
+          bookingId: booking.uid,
+          customerName: `${customerDetails.firstName} ${customerDetails.lastName}`,
+          paymentStatus: isDepositRequired() 
+            ? 'Deposit Charged' 
+            : 'Card Stored for No-Show Protection'
+        });
+      } else {
+        // No card required, just update the booking
+        const updateResult = await updateBooking();
+        
+        if (!updateResult.success) {
+          throw new Error(updateResult.error?.message || 'Booking update failed');
+        }
+        
+        // Log success
+        logSuccess('Booking successfully completed (no payment required)', {
+          bookingId: booking.uid,
+          customerName: `${customerDetails.firstName} ${customerDetails.lastName}`
+        });
+      }
+      
+      // Update state to show completion
       setBookingComplete(true);
       setFlowState(FLOW_STATES.COMPLETED);
       setCurrentStep('bookingComplete');
       
     } catch (error) {
       // Log the error
-      logError('Failed to update booking with customer details', error);
+      logError('Failed to complete booking', error);
       
       // Set error state
       setError({
@@ -811,7 +816,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
     setKeysLoaded(false);
     setDepositInfoLoaded(false);
     setCardComplete(false);
-    setValidatedBooking(false);
     setPaymentProcessed(false);
     setPaymentMethodAttached(false);
     setBookingComplete(false);
@@ -827,7 +831,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
     });
     setFormErrors({});
     setCardError('');
-    setPaymentResult(null);
     setCurrentStep('idle');
     
     // Process the hold request
@@ -848,7 +851,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
       setKeysLoaded(false);
       setDepositInfoLoaded(false);
       setCardComplete(false);
-      setValidatedBooking(false);
       setPaymentProcessed(false);
       setPaymentMethodAttached(false);
       setBookingComplete(false);
@@ -864,7 +866,6 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
       });
       setFormErrors({});
       setCardError('');
-      setPaymentResult(null);
       setCurrentStep('idle');
     }
   }, [flowState]);
@@ -1263,60 +1264,13 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
                 </div>
               </div>
               
-              {/* Payment Processing Buttons */}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={validateBooking}
-                  disabled={isLoading || validatedBooking}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    validatedBooking 
-                      ? 'bg-green-100 text-green-800 cursor-not-allowed' 
-                      : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                  }`}
-                >
-                  {isLoading && currentStep === 'validatingBooking'
-                    ? 'Validating...' 
-                    : validatedBooking 
-                      ? '✓ Booking Validated' 
-                      : '1. Validate Booking'}
-                </button>
-                
-                <button
-                  onClick={processPayment}
-                  disabled={isLoading || !validatedBooking || paymentProcessed}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    !validatedBooking 
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : paymentProcessed
-                        ? 'bg-green-100 text-green-800 cursor-not-allowed'
-                        : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                  }`}
-                >
-                  {isLoading && currentStep === 'processingPayment'
-                    ? 'Processing...' 
-                    : paymentProcessed 
-                      ? '✓ Payment Processed' 
-                      : '2. Process Payment'}
-                </button>
-                
-                <button
-                  onClick={attachPaymentMethod}
-                  disabled={isLoading || !paymentProcessed || paymentMethodAttached}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                    !paymentProcessed
-                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                      : paymentMethodAttached
-                        ? 'bg-green-100 text-green-800 cursor-not-allowed'
-                        : 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-                  }`}
-                >
-                  {isLoading && currentStep === 'attachingPaymentMethod'
-                    ? 'Attaching...' 
-                    : paymentMethodAttached 
-                      ? '✓ Payment Method Attached' 
-                      : '3. Attach Payment Method'}
-                </button>
-              </div>
+              {/* Message prompting next step once card entry complete */}
+              {cardComplete && (
+                <p className="text-sm text-blue-600">
+                  Card details captured. Continue to &quot;Additional Details&quot; and press&nbsp;
+                  <strong>Complete Booking</strong> to process payment and finalize your reservation.
+                </p>
+              )}
             </div>
           )}
           
@@ -1354,8 +1308,8 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
         </div>
       )}
       
-      {/* SECTION 4: ADDITIONAL DETAILS - Visible after payment processed or no card required */}
-      {((paymentMethodAttached && isCardRequired()) || 
+      {/* SECTION 4: ADDITIONAL DETAILS - Visible after card entry complete or no card required */}
+{((cardComplete && isCardRequired()) || 
         (customerDetailsComplete && !isCardRequired())) && 
         !bookingComplete && (
         <div className="mb-6 p-4 border border-gray-200 rounded-md">
