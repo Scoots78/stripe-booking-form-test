@@ -10,23 +10,23 @@ import useLogger from '../hooks/useLogger';
 const SAMPLE_URLS = [
   {
     label: 'TestNZA - Deposit Required (card=2)',
-    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=10&date=2025-07-25&time=16&area=1000'
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=10&date=2025-08-01&time=20&area=1000'
   },
   {
     label: 'TestNZA - No-Show Protection (card=1)',
-    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=2&date=2025-07-26&time=19&area=1000'
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=4&date=2025-08-01&time=12'
   },
   {
-    label: 'TestNZA - No Card Required (card=0)',
-    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=1&date=2025-07-27&time=12&area=1000'
+    label: 'TestNZA - Card Required (Event)',
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=4&date=2025-08-01&time=18&event=1000&area=1000'
   },
   {
     label: 'TestNZA - Deposit (no area param)',
-    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=6&date=2025-07-30&time=18'
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=6&date=2025-08-01&time=18'
   },
   {
-    label: 'TestNZA - No-Show (no area param)',
-    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=4&date=2025-08-01&time=20'
+    label: 'TestNZA - No card required',
+    url: 'https://nz.eveve.com/web/hold?est=TestNZA&lng=en&covers=2&date=2025-08-01&time=12'
   }
 ];
 
