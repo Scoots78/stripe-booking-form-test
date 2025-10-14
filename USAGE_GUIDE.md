@@ -33,6 +33,10 @@ Each main area is **self-contained**; nothing progresses until you click its but
 ---
 
 ## 3. The Full Flow (step-by-step)
+Get a hold call from the eveve form https://nz.eveve.com/web/form?est=SERVICE_NAME . This will be called after you click a DATE button. Paste a copy for the request into the 'Eveve HOLD url' input field.
+
+Demo setup will be setup for cover 4 and over mon-fri stripe will be registration only (type 1) $10 pp
+Sat - Sun 4+ will be deposit (type 2) $14 pp
 
 | # | Component / Button | API Called | Purpose |
 |---|--------------------|------------|---------|
