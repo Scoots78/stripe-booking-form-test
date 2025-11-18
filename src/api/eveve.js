@@ -101,7 +101,8 @@ export const hold = (params) => {
 };
 
 /**
- * PI-GET - Get Stripe client_secret and public_key
+ * PI-GET - Get Stripe clientSecret and publishableKey (or stripePK)
+ * Note: API previously returned client_secret/public_key (snake_case)
  * @param {Object} params - Query parameters
  * @param {string} params.est - Establishment code
  * @param {number} params.uid - Booking UID

@@ -384,13 +384,17 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
       
       const response = await eveveApi.piGet(piGetParams);
       
-      if (!response.data.client_secret || !response.data.public_key) {
+      // Handle both old and new API field names for backward compatibility
+      const clientSecret = response.data.clientSecret || response.data.client_secret;
+      const publicKey = response.data.publishableKey || response.data.public_key || response.data.stripePK;
+      
+      if (!clientSecret || !publicKey) {
         throw new Error('Missing Stripe keys in pi-get response');
       }
       
       setStripeKeys({
-        clientSecret: response.data.client_secret,
-        publicKey: response.data.public_key,
+        clientSecret,
+        publicKey,
         cust: response.data.cust
       });
       
