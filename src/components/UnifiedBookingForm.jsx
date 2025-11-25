@@ -546,10 +546,10 @@ const UnifiedBookingForm = ({ stripeLoaded }) => {
         throw result.error;
       }
       
-      // Payment or setup successful
+      // Payment or setup successful - extract intent ID (seti_xxx or pi_xxx)
       const paymentMethodId = intentType === 'setup_intent' 
-        ? result.setupIntent.payment_method
-        : result.paymentIntent.payment_method;
+        ? result.setupIntent.id
+        : result.paymentIntent.id;
       
       // Store the payment method ID
       setPaymentMethod(paymentMethodId);
